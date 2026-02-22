@@ -1,15 +1,18 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/zulfikawr/vbrowser/internal/browser"
 	"github.com/zulfikawr/vbrowser/internal/process"
+	"github.com/zulfikawr/vbrowser/pkg/server"
 )
 
 var (
@@ -76,7 +79,17 @@ var startCmd = &cobra.Command{
 			Str("url", fmt.Sprintf("http://%s:%d", cfg.Server.Host, cfg.Server.Port)).
 			Msg("vbrowser started")
 
-		// TODO: Start HTTP server
+		// Start HTTP server
+		srv := server.New(cfg)
+		if err := srv.Start(); err != nil {
+			if err := mgr.Stop(); err != nil {
+				log.Warn().Err(err).Msg("failed to stop manager")
+			}
+			if err := process.Remove(cfg.PIDFile); err != nil {
+				log.Warn().Err(err).Msg("failed to remove pid file")
+			}
+			return fmt.Errorf("start server: %w", err)
+		}
 
 		// Handle shutdown signals
 		sigChan := make(chan os.Signal, 1)
@@ -84,6 +97,14 @@ var startCmd = &cobra.Command{
 		<-sigChan
 
 		log.Info().Msg("shutting down")
+
+		// Graceful shutdown
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := srv.Stop(ctx); err != nil {
+			log.Warn().Err(err).Msg("failed to stop server")
+		}
 		if err := mgr.Stop(); err != nil {
 			log.Warn().Err(err).Msg("failed to stop manager")
 		}
