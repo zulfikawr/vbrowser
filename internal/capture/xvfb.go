@@ -6,6 +6,7 @@ package capture
 import (
 	"fmt"
 	"image"
+	"os"
 
 	"github.com/kbinani/screenshot"
 	"github.com/rs/zerolog/log"
@@ -22,6 +23,12 @@ type XvfbCapturer struct {
 // NewXvfbCapturer creates a new Xvfb screen capturer.
 func NewXvfbCapturer(displayNum, width, height int) (*XvfbCapturer, error) {
 	bounds := image.Rect(0, 0, width, height)
+
+	// Set DISPLAY environment variable for screenshot library
+	displayStr := fmt.Sprintf(":%d", displayNum)
+	if err := os.Setenv("DISPLAY", displayStr); err != nil {
+		return nil, fmt.Errorf("set DISPLAY env: %w", err)
+	}
 
 	log.Info().
 		Int("display", displayNum).

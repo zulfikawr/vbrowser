@@ -121,7 +121,7 @@ func (s *Server) handleSignalingMessage(session *stream.Session, conn *websocket
 		}
 
 		// Create answer
-		answer, err := session.CreateOffer() // This creates an answer in response
+		answer, err := session.CreateAnswer()
 		if err != nil {
 			return fmt.Errorf("create answer: %w", err)
 		}

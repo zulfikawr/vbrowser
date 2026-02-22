@@ -113,6 +113,20 @@ func (s *Session) Stop() error {
 	return nil
 }
 
+// CreateAnswer creates a WebRTC answer in response to an offer.
+func (s *Session) CreateAnswer() (webrtc.SessionDescription, error) {
+	answer, err := s.peerConnection.CreateAnswer(nil)
+	if err != nil {
+		return webrtc.SessionDescription{}, fmt.Errorf("create answer: %w", err)
+	}
+
+	if err := s.peerConnection.SetLocalDescription(answer); err != nil {
+		return webrtc.SessionDescription{}, fmt.Errorf("set local description: %w", err)
+	}
+
+	return answer, nil
+}
+
 // CreateOffer creates a WebRTC offer.
 func (s *Session) CreateOffer() (webrtc.SessionDescription, error) {
 	offer, err := s.peerConnection.CreateOffer(nil)
