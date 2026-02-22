@@ -35,6 +35,9 @@ func (s *Server) Start() error {
 	// Serve embedded UI
 	mux.HandleFunc("/", s.handleIndex)
 
+	// WebSocket signaling endpoint
+	mux.HandleFunc("/ws", s.handleWebSocket)
+
 	addr := fmt.Sprintf("%s:%d", s.cfg.Server.Host, s.cfg.Server.Port)
 	s.server = &http.Server{
 		Addr:         addr,
