@@ -1,0 +1,27 @@
+# Binaries
+dist/
+/vbrowser
+*.exe
+
+# Runtime files
+*.pid
+
+# Test artifacts
+*.test
+coverage.out
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Local data
+*.log
+
+# Planning
+plan.md
+tasks.md

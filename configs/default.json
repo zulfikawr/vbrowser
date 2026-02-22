@@ -1,0 +1,39 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 7070,
+    "auth": {
+      "enabled": false,
+      "token": ""
+    }
+  },
+  "browser": {
+    "chromium_path": "",
+    "auto_download": true,
+    "download_dir": "~/.local/share/vbrowser/chromium",
+    "profile_dir": "~/.local/share/vbrowser/profile",
+    "window_width": 1920,
+    "window_height": 1080,
+    "extra_args": []
+  },
+  "display": {
+    "virtual_display": true,
+    "display_num": 99,
+    "depth": 24
+  },
+  "stream": {
+    "video_codec": "vp8",
+    "target_fps": 30,
+    "max_bitrate_kbps": 4000,
+    "quality_preset": "balanced"
+  },
+  "session": {
+    "max_sessions": 1,
+    "idle_timeout_seconds": 0
+  },
+  "logging": {
+    "level": "info",
+    "file": ""
+  },
+  "pid_file": "~/.local/share/vbrowser/vbrowser.pid"
+}
