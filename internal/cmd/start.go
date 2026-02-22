@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -48,9 +50,11 @@ var startCmd = &cobra.Command{
 			}
 		}
 
-		if chromiumPath != "" {
-			log.Info().Str("chromium", chromiumPath).Msg("using Chromium")
+		if chromiumPath == "" {
+			return fmt.Errorf("chromium path not configured and auto-download disabled")
 		}
+
+		log.Info().Str("chromium", chromiumPath).Msg("using Chromium")
 
 		// Write PID file
 		currentPid := os.Getpid()
@@ -58,12 +62,34 @@ var startCmd = &cobra.Command{
 			return fmt.Errorf("write pid file: %w", err)
 		}
 
+		// Start browser manager
+		mgr := browser.NewManager(cfg)
+		if err := mgr.Start(chromiumPath); err != nil {
+			if err := process.Remove(cfg.PIDFile); err != nil {
+				log.Warn().Err(err).Msg("failed to remove pid file")
+			}
+			return fmt.Errorf("start browser: %w", err)
+		}
+
 		log.Info().
 			Int("pid", currentPid).
 			Str("url", fmt.Sprintf("http://%s:%d", cfg.Server.Host, cfg.Server.Port)).
-			Msg("vbrowser starting")
+			Msg("vbrowser started")
 
-		// TODO: Implement daemon start logic (Xvfb, HTTP server)
+		// TODO: Start HTTP server
+
+		// Handle shutdown signals
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		<-sigChan
+
+		log.Info().Msg("shutting down")
+		if err := mgr.Stop(); err != nil {
+			log.Warn().Err(err).Msg("failed to stop manager")
+		}
+		if err := process.Remove(cfg.PIDFile); err != nil {
+			log.Warn().Err(err).Msg("failed to remove pid file")
+		}
 
 		return nil
 	},
