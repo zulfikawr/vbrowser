@@ -34,6 +34,7 @@ func (s *Server) Start() error {
 
 	// Serve embedded UI
 	mux.HandleFunc("/", s.handleIndex)
+	mux.HandleFunc("/client.js", s.handleClientJS)
 
 	// WebSocket signaling endpoint
 	mux.HandleFunc("/ws", s.handleWebSocket)
@@ -82,6 +83,20 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := w.Write(data); err != nil {
+		log.Error().Err(err).Msg("failed to write response")
+	}
+}
+
+func (s *Server) handleClientJS(w http.ResponseWriter, r *http.Request) {
+	data, err := uiFiles.ReadFile("ui/client.js")
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		log.Error().Err(err).Msg("failed to read client.js")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 	if _, err := w.Write(data); err != nil {
 		log.Error().Err(err).Msg("failed to write response")
 	}
