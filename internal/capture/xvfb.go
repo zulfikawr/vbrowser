@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"image"
 	"os"
+	"syscall"
+	"time"
 
 	"github.com/kbinani/screenshot"
 	"github.com/rs/zerolog/log"
@@ -34,7 +36,19 @@ func NewXvfbCapturer(displayNum, width, height int) (*XvfbCapturer, error) {
 		Int("display", displayNum).
 		Int("width", width).
 		Int("height", height).
+		Str("DISPLAY", os.Getenv("DISPLAY")).
 		Msg("initializing Xvfb capturer")
+
+	// Try to wait for X11 to be ready (best effort, don't fail if not available)
+	maxRetries := 10
+	for i := 0; i < maxRetries; i++ {
+		n := screenshot.NumActiveDisplays()
+		if n > 0 {
+			log.Debug().Int("displays", n).Msg("X11 display ready")
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 
 	return &XvfbCapturer{
 		displayNum: displayNum,
@@ -46,6 +60,18 @@ func NewXvfbCapturer(displayNum, width, height int) (*XvfbCapturer, error) {
 
 // Capture captures a single frame from the Xvfb display.
 func (c *XvfbCapturer) Capture() (*image.RGBA, error) {
+	// Suppress XGB warnings by redirecting stderr to /dev/null at fd level
+	devNull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if devNull != nil {
+		oldStderr, _ := syscall.Dup(2)
+		syscall.Dup2(int(devNull.Fd()), 2)
+		defer func() {
+			syscall.Dup2(oldStderr, 2)
+			syscall.Close(oldStderr)
+			devNull.Close()
+		}()
+	}
+
 	// Use screenshot library which handles X11 display capture
 	img, err := screenshot.CaptureDisplay(0)
 	if err != nil {
@@ -54,10 +80,10 @@ func (c *XvfbCapturer) Capture() (*image.RGBA, error) {
 
 	// Convert to RGBA
 	bounds := img.Bounds()
-	rgba := image.NewRGBA(bounds)
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			rgba.Set(x, y, img.At(x, y))
+	rgba := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
+	for y := 0; y < bounds.Dy(); y++ {
+		for x := 0; x < bounds.Dx(); x++ {
+			rgba.Set(x, y, img.At(bounds.Min.X+x, bounds.Min.Y+y))
 		}
 	}
 

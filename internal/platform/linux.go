@@ -6,7 +6,9 @@ package platform
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -23,12 +25,23 @@ func StartXvfb(displayNum, width, height, depth int) (*exec.Cmd, error) {
 		"-screen", "0", screen,
 		"-ac",
 		"-nolisten", "tcp",
+		"+extension", "RANDR",
 	}
 
+	log.Debug().Msgf("Starting Xvfb with args: %v", args)
 	cmd := exec.Command("Xvfb", args...)
+	
+	// Xvfb is extremely noisy on stderr with non-fatal xkbcomp warnings.
+	// We'll silence its stderr to keep our vbrowser logs clean.
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = nil 
+
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start Xvfb: %w", err)
 	}
+
+	// Wait a bit for Xvfb to be ready
+	time.Sleep(500 * time.Millisecond)
 
 	log.Info().
 		Int("display", displayNum).

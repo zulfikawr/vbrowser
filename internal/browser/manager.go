@@ -100,6 +100,15 @@ func (m *Manager) IsRunning() bool {
 	return err == nil
 }
 
+// Restart stops and starts the browser with new settings.
+func (m *Manager) Restart(chromiumPath string) error {
+	log.Info().Msg("restarting browser manager for configuration change")
+	if err := m.Stop(); err != nil {
+		log.Warn().Err(err).Msg("failed to stop manager during restart")
+	}
+	return m.Start(chromiumPath)
+}
+
 func (m *Manager) stopXvfb() {
 	if m.xvfbCmd != nil && m.xvfbCmd.Process != nil {
 		log.Info().Int("pid", m.xvfbCmd.Process.Pid).Msg("stopping Xvfb")
@@ -118,6 +127,7 @@ func (m *Manager) buildChromiumArgs() []string {
 		"--remote-debugging-address=127.0.0.1",
 		fmt.Sprintf("--user-data-dir=%s", m.cfg.Browser.ProfileDir),
 		fmt.Sprintf("--window-size=%d,%d", m.cfg.Browser.WindowWidth, m.cfg.Browser.WindowHeight),
+		fmt.Sprintf("--window-position=%d,%d", 0, 0),
 		"--no-first-run",
 		"--no-default-browser-check",
 		"--disable-translate",
@@ -125,7 +135,11 @@ func (m *Manager) buildChromiumArgs() []string {
 		"--disable-features=TranslateUI",
 		"--password-store=basic",
 		"--use-mock-keychain",
-		"--start-maximized",
+		"--no-sandbox",
+		"--disable-dev-shm-usage",
+		"--disable-gpu",
+		"--no-zygote",
+		"--single-process",
 	}
 
 	if runtime.GOOS == "linux" && m.cfg.Display.VirtualDisplay {

@@ -6,10 +6,13 @@ import (
 	"embed"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/zulfikawr/vbrowser/internal/browser"
 	"github.com/zulfikawr/vbrowser/internal/config"
+	"github.com/zulfikawr/vbrowser/internal/stream"
 )
 
 //go:embed ui
@@ -17,14 +20,18 @@ var uiFiles embed.FS
 
 // Server manages the HTTP server.
 type Server struct {
-	cfg    *config.Config
-	server *http.Server
+	cfg            *config.Config
+	server         *http.Server
+	mgr            *browser.Manager
+	currentSession *stream.Session
+	mu             sync.Mutex
 }
 
 // New creates a new HTTP server.
-func New(cfg *config.Config) *Server {
+func New(cfg *config.Config, mgr *browser.Manager) *Server {
 	return &Server{
 		cfg: cfg,
+		mgr: mgr,
 	}
 }
 

@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"syscall"
 
 	"github.com/rs/zerolog/log"
@@ -12,37 +14,43 @@ import (
 
 var stopCmd = &cobra.Command{
 	Use:   "stop",
-	Short: "Stop a running vbrowser daemon",
+	Short: "Stop a running vbrowser daemon and clean up resources",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// 1. Try to stop via PID file first (graceful)
 		pid, err := process.Read(cfg.PIDFile)
-		if err != nil {
-			return fmt.Errorf("vbrowser is not running (no pid file)")
-		}
-
-		if !process.IsRunning(pid) {
-			log.Warn().Int("pid", pid).Msg("process not running, removing stale pid file")
-			if err := process.Remove(cfg.PIDFile); err != nil {
-				return fmt.Errorf("remove pid file: %w", err)
+		if err == nil && process.IsRunning(pid) {
+			log.Info().Int("pid", pid).Msg("stopping vbrowser daemon")
+			if proc, err := os.FindProcess(pid); err == nil {
+				proc.Signal(syscall.SIGTERM)
 			}
-			return fmt.Errorf("vbrowser is not running")
+			process.Remove(cfg.PIDFile)
 		}
 
-		log.Info().Int("pid", pid).Msg("stopping vbrowser")
+		// 2. Force kill any orphaned Chromium or Xvfb processes
+		log.Info().Msg("cleaning up orphaned chromium and xvfb processes...")
+		exec.Command("pkill", "-f", "chrome").Run()
+		exec.Command("pkill", "-f", "Xvfb").Run()
 
-		proc, err := os.FindProcess(pid)
-		if err != nil {
-			return fmt.Errorf("find process: %w", err)
+		// 3. Clean up stale X11 lock files
+		displayNum := cfg.Display.DisplayNum
+		lockFile := fmt.Sprintf("/tmp/.X%d-lock", displayNum)
+		unixSocket := fmt.Sprintf("/tmp/.X11-unix/X%d", displayNum)
+
+		if _, err := os.Stat(lockFile); err == nil {
+			log.Info().Str("path", lockFile).Msg("removing stale X11 lock file")
+			os.Remove(lockFile)
 		}
 
-		if err := proc.Signal(syscall.SIGTERM); err != nil {
-			return fmt.Errorf("send SIGTERM: %w", err)
+		if _, err := os.Stat(unixSocket); err == nil {
+			log.Info().Str("path", unixSocket).Msg("removing stale X11 unix socket")
+			os.Remove(unixSocket)
 		}
 
-		if err := process.Remove(cfg.PIDFile); err != nil {
-			return fmt.Errorf("remove pid file: %w", err)
-		}
+		// 4. Ensure download directory lock is also cleared if it exists
+		downloadLock := filepath.Join(cfg.Browser.DownloadDir, "vbrowser.lock")
+		os.Remove(downloadLock)
 
-		log.Info().Msg("vbrowser stopped")
+		log.Info().Msg("vbrowser cleanup complete")
 		return nil
 	},
 }

@@ -16,14 +16,16 @@ import (
 
 // Session represents a WebRTC streaming session.
 type Session struct {
-	id             string
-	cfg            *config.Config
-	peerConnection *webrtc.PeerConnection
-	videoTrack     *webrtc.TrackLocalStaticSample
-	capturer       capture.Capturer
-	encoder        *Encoder
-	stopChan       chan struct{}
-	wg             sync.WaitGroup
+	id                string
+	cfg               *config.Config
+	peerConnection    *webrtc.PeerConnection
+	videoTrack        *webrtc.TrackLocalStaticSample
+	capturer          capture.Capturer
+	encoder           *Encoder
+	stopChan          chan struct{}
+	wg                sync.WaitGroup
+	pendingCandidates []webrtc.ICECandidateInit
+	candidatesMux     sync.Mutex
 }
 
 // NewSession creates a new WebRTC streaming session.
@@ -87,10 +89,11 @@ func NewSession(id string, cfg *config.Config, capturer capture.Capturer) (*Sess
 
 // Start begins capturing and streaming frames.
 func (s *Session) Start(ctx context.Context) error {
-	log.Info().Str("session_id", s.id).Msg("starting capture loop")
+	log.Info().Str("session_id", s.id).Msg("starting capture and encode loops")
 
-	s.wg.Add(1)
+	s.wg.Add(2)
 	go s.captureLoop(ctx)
+	go s.encodeLoop(ctx)
 
 	return nil
 }
@@ -127,27 +130,35 @@ func (s *Session) CreateAnswer() (webrtc.SessionDescription, error) {
 	return answer, nil
 }
 
-// CreateOffer creates a WebRTC offer.
-func (s *Session) CreateOffer() (webrtc.SessionDescription, error) {
-	offer, err := s.peerConnection.CreateOffer(nil)
-	if err != nil {
-		return webrtc.SessionDescription{}, fmt.Errorf("create offer: %w", err)
-	}
-
-	if err := s.peerConnection.SetLocalDescription(offer); err != nil {
-		return webrtc.SessionDescription{}, fmt.Errorf("set local description: %w", err)
-	}
-
-	return offer, nil
-}
-
 // SetRemoteDescription sets the remote SDP description.
 func (s *Session) SetRemoteDescription(sdp webrtc.SessionDescription) error {
-	return s.peerConnection.SetRemoteDescription(sdp)
+	if err := s.peerConnection.SetRemoteDescription(sdp); err != nil {
+		return err
+	}
+
+	// Add any pending ICE candidates
+	s.candidatesMux.Lock()
+	defer s.candidatesMux.Unlock()
+
+	for _, candidate := range s.pendingCandidates {
+		if err := s.peerConnection.AddICECandidate(candidate); err != nil {
+			log.Warn().Err(err).Msg("failed to add pending candidate")
+		}
+	}
+	s.pendingCandidates = nil
+
+	return nil
 }
 
 // AddICECandidate adds an ICE candidate.
 func (s *Session) AddICECandidate(candidate webrtc.ICECandidateInit) error {
+	if s.peerConnection.RemoteDescription() == nil {
+		s.candidatesMux.Lock()
+		s.pendingCandidates = append(s.pendingCandidates, candidate)
+		s.candidatesMux.Unlock()
+		return nil
+	}
+
 	return s.peerConnection.AddICECandidate(candidate)
 }
 
@@ -174,31 +185,67 @@ func (s *Session) captureLoop(ctx context.Context) {
 		case <-s.stopChan:
 			return
 		case <-ticker.C:
-			if err := s.captureAndSend(); err != nil {
-				if err != io.ErrClosedPipe {
-					log.Error().Err(err).Msg("capture and send failed")
-				}
+			frame, err := s.capturer.Capture()
+			if err != nil {
+				log.Error().Err(err).Msg("capture failed")
+				continue
+			}
+
+			if err := s.encoder.Encode(frame); err != nil {
+				log.Error().Err(err).Msg("encode failed")
 				return
 			}
 		}
 	}
 }
 
-func (s *Session) captureAndSend() error {
-	// Capture frame
-	frame, err := s.capturer.Capture()
-	if err != nil {
-		return fmt.Errorf("capture: %w", err)
+func (s *Session) encodeLoop(ctx context.Context) {
+	defer s.wg.Done()
+
+	// IVF Header (32 bytes)
+	// Byte 0-3: 'DKIF'
+	// Byte 4-5: version (0)
+	// Byte 6-7: header size (32)
+	// Byte 8-11: 'VP80'
+	// ...
+	header := make([]byte, 32)
+	if _, err := io.ReadFull(s.encoder.stdout, header); err != nil {
+		log.Error().Err(err).Msg("failed to read IVF header")
+		return
 	}
 
-	// For now, we'll send raw frames
-	// WebRTC will handle VP8 encoding internally
-	if err := s.videoTrack.WriteSample(media.Sample{
-		Data:     frame.Pix,
-		Duration: time.Second / time.Duration(s.cfg.Stream.TargetFPS),
-	}); err != nil {
-		return fmt.Errorf("write sample: %w", err)
-	}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.stopChan:
+			return
+		default:
+			// IVF Frame Header (12 bytes)
+			// Byte 0-3: frame size
+			// Byte 4-11: timestamp
+			frameHeader := make([]byte, 12)
+			if _, err := io.ReadFull(s.encoder.stdout, frameHeader); err != nil {
+				if err != io.EOF {
+					log.Error().Err(err).Msg("failed to read IVF frame header")
+				}
+				return
+			}
 
-	return nil
+			frameSize := uint32(frameHeader[0]) | uint32(frameHeader[1])<<8 | uint32(frameHeader[2])<<16 | uint32(frameHeader[3])<<24
+			frameData := make([]byte, frameSize)
+			if _, err := io.ReadFull(s.encoder.stdout, frameData); err != nil {
+				log.Error().Err(err).Msg("failed to read IVF frame data")
+				return
+			}
+
+			if err := s.videoTrack.WriteSample(media.Sample{
+				Data:     frameData,
+				Duration: time.Second / time.Duration(s.cfg.Stream.TargetFPS),
+			}); err != nil {
+				log.Error().Err(err).Msg("write sample failed")
+				return
+			}
+		}
+	}
 }
