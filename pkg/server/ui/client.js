@@ -88,11 +88,6 @@
     video.addEventListener('mousemove', (e) => {
         const pos = getMousePos(e);
         
-        // Move fake cursor
-        cursorEl.style.display = 'block';
-        cursorEl.style.left = `${e.clientX}px`;
-        cursorEl.style.top = `${e.clientY}px`;
-
         send({
             type: 'input',
             input: {

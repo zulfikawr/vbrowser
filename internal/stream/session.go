@@ -3,249 +3,133 @@ package stream
 import (
 	"context"
 	"fmt"
-	"io"
 	"sync"
-	"time"
 
 	"github.com/pion/webrtc/v4"
 	"github.com/pion/webrtc/v4/pkg/media"
-	"github.com/rs/zerolog/log"
-	"github.com/zulfikawr/vbrowser/internal/capture"
 	"github.com/zulfikawr/vbrowser/internal/config"
+	"github.com/zulfikawr/vbrowser/pkg/gst"
 )
 
-// Session represents a WebRTC streaming session.
 type Session struct {
 	id                string
 	cfg               *config.Config
 	peerConnection    *webrtc.PeerConnection
 	videoTrack        *webrtc.TrackLocalStaticSample
-	capturer          capture.Capturer
-	encoder           *Encoder
+	pipeline          gst.Pipeline
 	stopChan          chan struct{}
 	wg                sync.WaitGroup
 	pendingCandidates []webrtc.ICECandidateInit
 	candidatesMux     sync.Mutex
 }
 
-// NewSession creates a new WebRTC streaming session.
-func NewSession(id string, cfg *config.Config, capturer capture.Capturer) (*Session, error) {
-	// Create WebRTC configuration
+func NewSession(id string, cfg *config.Config) (*Session, error) {
 	webrtcConfig := webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
-			{
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			},
-		},
+		ICEServers: []webrtc.ICEServer{{URLs: []string{"stun:stun.l.google.com:19302"}}},
 	}
 
-	// Create peer connection
 	peerConnection, err := webrtc.NewPeerConnection(webrtcConfig)
 	if err != nil {
-		return nil, fmt.Errorf("create peer connection: %w", err)
+		return nil, err
 	}
 
-	// Create video track
 	videoTrack, err := webrtc.NewTrackLocalStaticSample(
 		webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8},
-		"video",
-		"vbrowser",
+		"video", "vbrowser",
 	)
 	if err != nil {
-		peerConnection.Close()
-		return nil, fmt.Errorf("create video track: %w", err)
+		return nil, err
 	}
 
-	// Add track to peer connection
 	if _, err := peerConnection.AddTrack(videoTrack); err != nil {
-		peerConnection.Close()
-		return nil, fmt.Errorf("add track: %w", err)
+		return nil, err
 	}
 
-	// Create encoder
-	encoder, err := NewEncoder(
-		cfg.Browser.WindowWidth,
-		cfg.Browser.WindowHeight,
+	// GStreamer pipeline string (Neko-style)
+	// captures from ximagesrc (Xvfb) and encodes to VP8
+	pipelineStr := fmt.Sprintf(
+		"ximagesrc display-name=:%d show-pointer=true use-damage=false ! "+
+			"video/x-raw,framerate=%d/1 ! videoconvert ! queue ! "+
+			"vp8enc target-bitrate=%d deadline=1 cpu-used=8 threads=4 keyframe-max-dist=30 name=encoder ! "+
+			"appsink name=appsink",
+		cfg.Display.DisplayNum,
 		cfg.Stream.TargetFPS,
-		cfg.Stream.MaxBitrateKbps,
+		cfg.Stream.MaxBitrateKbps*1000,
 	)
-	if err != nil {
-		peerConnection.Close()
-		return nil, fmt.Errorf("create encoder: %w", err)
-	}
 
-	log.Info().Str("session_id", id).Msg("WebRTC session created")
+	pipeline, err := gst.CreatePipeline(pipelineStr)
+	if err != nil {
+		return nil, fmt.Errorf("gst pipeline: %w", err)
+	}
 
 	return &Session{
 		id:             id,
 		cfg:            cfg,
 		peerConnection: peerConnection,
 		videoTrack:     videoTrack,
-		capturer:       capturer,
-		encoder:        encoder,
+		pipeline:       pipeline,
 		stopChan:       make(chan struct{}),
 	}, nil
 }
 
-// Start begins capturing and streaming frames.
 func (s *Session) Start(ctx context.Context) error {
-	log.Info().Str("session_id", s.id).Msg("starting capture and encode loops")
-
-	s.wg.Add(2)
-	go s.captureLoop(ctx)
-	go s.encodeLoop(ctx)
-
+	s.pipeline.Play()
+	s.wg.Add(1)
+	go s.streamLoop(ctx)
 	return nil
 }
 
-// Stop stops the streaming session.
+func (s *Session) streamLoop(ctx context.Context) {
+	defer s.wg.Done()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.stopChan:
+			return
+		case sample, ok := <-s.pipeline.Sample():
+			if !ok {
+				return
+			}
+			s.videoTrack.WriteSample(media.Sample{
+				Data:     sample.Data,
+				Duration: sample.Duration,
+			})
+		}
+	}
+}
+
 func (s *Session) Stop() error {
-	log.Info().Str("session_id", s.id).Msg("stopping session")
-
 	close(s.stopChan)
+	s.pipeline.Destroy()
+	s.peerConnection.Close()
 	s.wg.Wait()
-
-	if s.encoder != nil {
-		s.encoder.Close()
-	}
-
-	if s.peerConnection != nil {
-		s.peerConnection.Close()
-	}
-
 	return nil
 }
 
-// CreateAnswer creates a WebRTC answer in response to an offer.
 func (s *Session) CreateAnswer() (webrtc.SessionDescription, error) {
 	answer, err := s.peerConnection.CreateAnswer(nil)
 	if err != nil {
-		return webrtc.SessionDescription{}, fmt.Errorf("create answer: %w", err)
+		return webrtc.SessionDescription{}, err
 	}
-
 	if err := s.peerConnection.SetLocalDescription(answer); err != nil {
-		return webrtc.SessionDescription{}, fmt.Errorf("set local description: %w", err)
+		return webrtc.SessionDescription{}, err
 	}
-
 	return answer, nil
 }
 
-// SetRemoteDescription sets the remote SDP description.
 func (s *Session) SetRemoteDescription(sdp webrtc.SessionDescription) error {
-	if err := s.peerConnection.SetRemoteDescription(sdp); err != nil {
-		return err
-	}
-
-	// Add any pending ICE candidates
-	s.candidatesMux.Lock()
-	defer s.candidatesMux.Unlock()
-
-	for _, candidate := range s.pendingCandidates {
-		if err := s.peerConnection.AddICECandidate(candidate); err != nil {
-			log.Warn().Err(err).Msg("failed to add pending candidate")
-		}
-	}
-	s.pendingCandidates = nil
-
-	return nil
+	return s.peerConnection.SetRemoteDescription(sdp)
 }
 
-// AddICECandidate adds an ICE candidate.
 func (s *Session) AddICECandidate(candidate webrtc.ICECandidateInit) error {
-	if s.peerConnection.RemoteDescription() == nil {
-		s.candidatesMux.Lock()
-		s.pendingCandidates = append(s.pendingCandidates, candidate)
-		s.candidatesMux.Unlock()
-		return nil
-	}
-
 	return s.peerConnection.AddICECandidate(candidate)
 }
 
-// OnICECandidate sets the ICE candidate callback.
 func (s *Session) OnICECandidate(handler func(*webrtc.ICECandidate)) {
 	s.peerConnection.OnICECandidate(handler)
 }
 
-// OnConnectionStateChange sets the connection state change callback.
 func (s *Session) OnConnectionStateChange(handler func(webrtc.PeerConnectionState)) {
 	s.peerConnection.OnConnectionStateChange(handler)
-}
-
-func (s *Session) captureLoop(ctx context.Context) {
-	defer s.wg.Done()
-
-	ticker := time.NewTicker(time.Second / time.Duration(s.cfg.Stream.TargetFPS))
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-s.stopChan:
-			return
-		case <-ticker.C:
-			frame, err := s.capturer.Capture()
-			if err != nil {
-				log.Error().Err(err).Msg("capture failed")
-				continue
-			}
-
-			if err := s.encoder.Encode(frame); err != nil {
-				log.Error().Err(err).Msg("encode failed")
-				return
-			}
-		}
-	}
-}
-
-func (s *Session) encodeLoop(ctx context.Context) {
-	defer s.wg.Done()
-
-	// IVF Header (32 bytes)
-	// Byte 0-3: 'DKIF'
-	// Byte 4-5: version (0)
-	// Byte 6-7: header size (32)
-	// Byte 8-11: 'VP80'
-	// ...
-	header := make([]byte, 32)
-	if _, err := io.ReadFull(s.encoder.stdout, header); err != nil {
-		log.Error().Err(err).Msg("failed to read IVF header")
-		return
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-s.stopChan:
-			return
-		default:
-			// IVF Frame Header (12 bytes)
-			// Byte 0-3: frame size
-			// Byte 4-11: timestamp
-			frameHeader := make([]byte, 12)
-			if _, err := io.ReadFull(s.encoder.stdout, frameHeader); err != nil {
-				if err != io.EOF {
-					log.Error().Err(err).Msg("failed to read IVF frame header")
-				}
-				return
-			}
-
-			frameSize := uint32(frameHeader[0]) | uint32(frameHeader[1])<<8 | uint32(frameHeader[2])<<16 | uint32(frameHeader[3])<<24
-			frameData := make([]byte, frameSize)
-			if _, err := io.ReadFull(s.encoder.stdout, frameData); err != nil {
-				log.Error().Err(err).Msg("failed to read IVF frame data")
-				return
-			}
-
-			if err := s.videoTrack.WriteSample(media.Sample{
-				Data:     frameData,
-				Duration: time.Second / time.Duration(s.cfg.Stream.TargetFPS),
-			}); err != nil {
-				log.Error().Err(err).Msg("write sample failed")
-				return
-			}
-		}
-	}
 }

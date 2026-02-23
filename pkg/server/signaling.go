@@ -68,16 +68,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	log.Info().Str("remote", r.RemoteAddr).Msg("websocket connected")
 
 	// Start a fresh session with current config
-	capturer, err := s.createCapturer()
-	if err != nil {
-		log.Error().Err(err).Msg("failed to create capturer")
-		s.sendError(conn, "Failed to create capturer")
-		return
-	}
-	defer capturer.Close()
-
-	// Create WebRTC session
-	session, err := stream.NewSession("session-1", s.cfg, capturer)
+	// (GStreamer handles capture now)
+	session, err := stream.NewSession("session-1", s.cfg)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to create session")
 		s.sendError(conn, "Failed to create session")
@@ -183,10 +175,9 @@ func (s *Server) handleSignalingMessage(session *stream.Session, conn *websocket
 		}
 
 		if err := session.AddICECandidate(*msg.Candidate); err != nil {
-			return fmt.Errorf("add ICE candidate: %w", err)
+			log.Debug().Err(err).Msg("failed to add ICE candidate, likely remote description not set yet")
 		}
-
-		log.Debug().Msg("added ICE candidate")
+		return nil
 
 	case "input":
 		if msg.Input == nil {
