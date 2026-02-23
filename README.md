@@ -6,12 +6,14 @@ A single Go binary that launches a Chromium instance on a remote server and stre
 
 ## Features
 
-- 🚀 Single static binary - no runtime dependencies
+- 🚀 Single static binary - high-performance Go + GStreamer
+- ⚡ Buttery smooth 60 FPS - ultra-low latency streaming
 - 🔄 Auto-downloads correct Chromium build for your OS
-- 🎥 Real-time streaming via WebRTC (VP8)
+- 🎥 Native GStreamer VP8 encoding (Mimicking Neko architecture)
 - 🔒 Secure over SSH tunnel (no cloud dependency)
+- 🖱️ Full interaction support (Mouse, Keyboard, Scroll, Shortcuts)
 - 💾 Persistent browser profile (cookies, bookmarks, passwords)
-- ⚙️ Configurable resolution, FPS, and bitrate
+- ⚙️ Hot-reloadable resolution, FPS, and bitrate
 - 🔧 Simple CLI (start, stop, status)
 
 ## Quick Start
@@ -19,35 +21,39 @@ A single Go binary that launches a Chromium instance on a remote server and stre
 ### Installation
 
 ```bash
+# Install dependencies (Ubuntu/Debian)
+sudo apt-get update
+sudo apt-get install -y xvfb xdotool libgstreamer1.0-dev \
+    gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
+
 # Clone the repository
 git clone https://github.com/zulfikawr/vbrowser.git
 cd vbrowser
 
 # Build
 make build
-
-# Or install directly
-make install
 ```
 
 ### Usage
 
 ```bash
 # On your remote server
-vbrowser start
+./vbrowser start
 
 # In another terminal (or from local machine)
 ssh -L 7070:localhost:7070 user@remote-server
 
 # Open in your local browser
-open http://localhost:7070
+# http://localhost:7070
 ```
 
 ## Requirements
 
 ### Server (Linux)
 - Go 1.21+ (for building)
-- Xvfb: `sudo apt-get install xvfb`
+- GStreamer 1.0+: `libgstreamer1.0-dev` and plugins (base, good, bad, ugly)
+- Xvfb & xdotool: `sudo apt-get install xvfb xdotool`
 - ~500MB disk space for Chromium
 - ~500MB RAM
 
@@ -72,8 +78,8 @@ Default config location: `~/.config/vbrowser/config.json`
   },
   "stream": {
     "video_codec": "vp8",
-    "target_fps": 30,
-    "max_bitrate_kbps": 4000
+    "target_fps": 60,
+    "max_bitrate_kbps": 8000
   }
 }
 ```
@@ -120,35 +126,6 @@ Print version info:
 vbrowser version
 ```
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                        SERVER                           │
-│                                                         │
-│   ┌──────────┐           ┌───────────┐                 │
-│   │ vbrowser │◄─────────►│ Chromium  │                 │
-│   │  daemon  │    CDP    │ (Xvfb)    │                 │
-│   │          │           └───────────┘                 │
-│   │  ┌─────┐ │                                         │
-│   │  │WebRTC│◄──────────┐                             │
-│   │  └─────┘ │           │                             │
-│   └──────────┘           │                             │
-│        │                 │                             │
-│   :7070 HTTP + WS        │                             │
-└────────┼─────────────────┼─────────────────────────────┘
-         │                 │
-         │  SSH Tunnel     │ WebRTC Stream
-         │                 │
-┌────────┼─────────────────┼─────────────────────────────┐
-│        │                 │      LOCAL MACHINE          │
-│   localhost:7070         │                             │
-│   ┌─────────────┐        │                             │
-│   │   Browser   │◄───────┘                             │
-│   └─────────────┘                                      │
-└─────────────────────────────────────────────────────────┘
-```
-
 ## Development
 
 ### Build
@@ -178,77 +155,42 @@ vbrowser/
 ├── cmd/vbrowser/          # Main entry point
 ├── internal/
 │   ├── browser/           # Chromium management & download
-│   ├── capture/           # Screen capture (Xvfb)
+│   ├── capture/           # Legacy capture (keeping for reference)
 │   ├── cmd/               # CLI commands
 │   ├── config/            # Configuration
 │   ├── platform/          # Platform-specific code
 │   ├── process/           # PID file management
 │   └── stream/            # WebRTC streaming
-├── pkg/server/            # HTTP server & signaling
+├── pkg/
+│   ├── gst/               # Native GStreamer CGo bindings
+│   └── server/            # HTTP server & signaling
 └── configs/               # Example configs
 ```
 
 ## Troubleshooting
 
-### Xvfb not found
+### Missing Dependencies
 ```bash
-sudo apt-get install xvfb
+sudo apt-get install xvfb xdotool libgstreamer1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
 ```
 
 ### Port already in use
 Change port in config or use `--port` flag:
 ```bash
-vbrowser start --port 8080
+./vbrowser start --port 8080
 ```
 
 ### Chromium won't start
 Check logs:
 ```bash
-vbrowser start --foreground --log-level debug
+./vbrowser start --foreground --log-level debug
 ```
 
 ### No video stream
 1. Check WebSocket connection in browser console
 2. Verify Chromium is running: `ps aux | grep chrome`
 3. Check Xvfb is running: `ps aux | grep Xvfb`
-
-## Performance Tuning
-
-### Reduce CPU usage
-Lower FPS or resolution in config:
-```json
-{
-  "stream": {
-    "target_fps": 15,
-    "max_bitrate_kbps": 2000
-  },
-  "browser": {
-    "window_width": 1280,
-    "window_height": 720
-  }
-}
-```
-
-### Reduce latency
-Increase bitrate and FPS:
-```json
-{
-  "stream": {
-    "target_fps": 60,
-    "max_bitrate_kbps": 8000
-  }
-}
-```
-
-## Roadmap
-
-- [x] Phase 1: Foundation (CLI, config, process management)
-- [x] Phase 2: Streaming MVP (capture, WebRTC, UI)
-- [ ] Phase 3: Input forwarding (mouse, keyboard)
-- [ ] Phase 4: Audio streaming
-- [ ] Phase 5: Multi-session support
-
-See `tasks.md` for detailed roadmap.
+4. Check GStreamer pipeline is active in logs.
 
 ## Contributing
 
@@ -260,9 +202,10 @@ MIT License - see `LICENSE` file for details.
 
 ## Acknowledgments
 
+- [m1k1o/neko](https://github.com/m1k1o/neko) - Architecture inspiration for low-latency GStreamer streaming
 - [pion/webrtc](https://github.com/pion/webrtc) - Pure Go WebRTC implementation
 - [chromedp](https://github.com/chromedp/chromedp) - Chrome DevTools Protocol
-- [kbinani/screenshot](https://github.com/kbinani/screenshot) - Screen capture
+- [GStreamer](https://gstreamer.freedesktop.org/) - Multimedia framework
 
 ## Author
 
