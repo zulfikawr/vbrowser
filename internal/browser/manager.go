@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/zulfikawr/vbrowser/internal/config"
@@ -27,9 +28,37 @@ func NewManager(cfg *config.Config) *Manager {
 	}
 }
 
+func (m *Manager) initPulseAudio() string {
+	// 1. Kill any existing PulseAudio to start fresh
+	_ = exec.Command("pulseaudio", "--kill").Run()
+	time.Sleep(500 * time.Millisecond)
+
+	// 2. Start PulseAudio with minimal settings
+	_ = exec.Command("pulseaudio", "--start", "--exit-idle-time=-1").Run()
+	time.Sleep(500 * time.Millisecond)
+
+	// 3. Unload suspend module
+	_ = exec.Command("pactl", "unload-module", "module-suspend-on-idle").Run()
+
+	sinkName := fmt.Sprintf("vbrowser-%d", m.cfg.Display.DisplayNum)
+
+	// 4. Load the null-sink
+	_ = exec.Command("pactl", "load-module", "module-null-sink",
+		fmt.Sprintf("sink_name=%s", sinkName),
+		fmt.Sprintf("sink_properties=device.description=%s", sinkName)).Run()
+
+	// 5. Force it as default
+	_ = exec.Command("pactl", "set-default-sink", sinkName).Run()
+	_ = exec.Command("pactl", "set-sink-mute", sinkName, "0").Run()
+	_ = exec.Command("pactl", "set-sink-volume", sinkName, "100%").Run()
+
+	return sinkName
+}
+
 // Start launches Xvfb (on Linux) and Chromium.
 func (m *Manager) Start(chromiumPath string) error {
-	// Start Xvfb on Linux
+	sinkName := m.initPulseAudio()
+
 	if runtime.GOOS == "linux" && m.cfg.Display.VirtualDisplay {
 		xvfb, err := platform.StartXvfb(
 			m.cfg.Display.DisplayNum,
@@ -43,14 +72,17 @@ func (m *Manager) Start(chromiumPath string) error {
 		m.xvfbCmd = xvfb
 	}
 
-	// Build Chromium arguments
 	args := m.buildChromiumArgs()
 
-	// Start Chromium
+	// Nuclear option: use a dedicated bash script to ensure environment is perfect
 	m.chromiumCmd = exec.Command(chromiumPath, args...)
+	m.chromiumCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
 	if runtime.GOOS == "linux" && m.cfg.Display.VirtualDisplay {
 		m.chromiumCmd.Env = append(os.Environ(),
 			fmt.Sprintf("DISPLAY=:%d", m.cfg.Display.DisplayNum),
+			fmt.Sprintf("PULSE_SINK=%s", sinkName),
+			"PULSE_SERVER=unix:/run/user/1000/pulse/native",
 		)
 	}
 
@@ -73,15 +105,17 @@ func (m *Manager) Start(chromiumPath string) error {
 func (m *Manager) Stop() error {
 	if m.chromiumCmd != nil && m.chromiumCmd.Process != nil {
 		log.Info().Int("pid", m.chromiumPid).Msg("stopping Chromium")
-		if err := m.chromiumCmd.Process.Signal(syscall.SIGTERM); err != nil {
-			log.Warn().Err(err).Msg("failed to send SIGTERM to Chromium")
+		pgid, err := syscall.Getpgid(m.chromiumCmd.Process.Pid)
+		if err == nil {
+			_ = syscall.Kill(-pgid, syscall.SIGTERM)
+		} else {
+			_ = m.chromiumCmd.Process.Signal(syscall.SIGTERM)
 		}
-		if err := m.chromiumCmd.Wait(); err != nil {
-			log.Debug().Err(err).Msg("chromium wait error")
-		}
+		_ = m.chromiumCmd.Wait()
 	}
 
 	m.stopXvfb()
+	_ = exec.Command("pulseaudio", "--kill").Run()
 
 	return nil
 }
@@ -139,7 +173,12 @@ func (m *Manager) buildChromiumArgs() []string {
 		"--disable-dev-shm-usage",
 		"--disable-gpu",
 		"--no-zygote",
-		"--single-process",
+		"--autoplay-policy=no-user-gesture-required",
+		"--alsa-check-close-timeout=0",
+		"--disable-audio-output-resampling",
+		"--audio-buffer-size=4096",
+		"--disable-features=AudioServiceSandbox",
+		"--force-device-scale-factor=1",
 	}
 
 	if runtime.GOOS == "linux" && m.cfg.Display.VirtualDisplay {

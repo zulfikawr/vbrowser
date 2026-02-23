@@ -43,6 +43,7 @@ func (s *Server) Start() error {
 	// Serve embedded UI
 	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/client.js", s.handleClientJS)
+	mux.HandleFunc("/health", s.handleHealth)
 
 	// WebSocket signaling endpoint
 	mux.HandleFunc("/ws", s.handleWebSocket)
@@ -91,6 +92,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0")
 	if _, err := w.Write(data); err != nil {
 		log.Error().Err(err).Msg("failed to write response")
 	}
@@ -105,9 +107,16 @@ func (s *Server) handleClientJS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0")
 	if _, err := w.Write(data); err != nil {
 		log.Error().Err(err).Msg("failed to write response")
 	}
+}
+
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }
 
 func (s *Server) logMiddleware(next http.Handler) http.Handler {

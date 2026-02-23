@@ -21,21 +21,24 @@
     const videoContainer = document.getElementById('video-container');
     
     function startPlayback() {
-        video.muted = true;
+        video.muted = true; // ALWAYS start muted for 100% reliable autoplay
         
         video.play().then(() => {
             videoContainer.classList.add('visible');
             connectionScreen.classList.add('hidden');
-            overlay.classList.remove('visible');
+            overlay.classList.add('visible'); // Show play button so user can unmute
             console.log('Autoplay successful (muted)');
         }).catch(err => {
-            console.log('Autoplay blocked even when muted, showing overlay');
+            console.error('Autoplay failed:', err);
+            connectionScreen.classList.add('hidden');
             overlay.classList.add('visible');
         });
     }
 
     overlay.addEventListener('click', () => {
-        startPlayback();
+        video.muted = false; // Unmute on user click
+        overlay.classList.remove('visible');
+        video.play();
     });
 
     function getMousePos(e) {
@@ -233,6 +236,24 @@
     }
 
     function connect() {
+        // Health check before connecting
+        fetch('/health')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    proceedToConnect();
+                } else {
+                    updateStatus('Server Unhealthy', 'disconnected');
+                    setTimeout(connect, 2000);
+                }
+            })
+            .catch(() => {
+                updateStatus('Waiting for Server...', 'connecting');
+                setTimeout(connect, 2000);
+            });
+    }
+
+    function proceedToConnect() {
         updateStatus('Connecting...', 'connecting');
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws`;

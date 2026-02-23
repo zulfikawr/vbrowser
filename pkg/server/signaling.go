@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -10,10 +9,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/mafredri/cdp"
-	"github.com/mafredri/cdp/devtool"
-	"github.com/mafredri/cdp/protocol/runtime"
-	"github.com/mafredri/cdp/rpcc"
 	"github.com/pion/webrtc/v4"
 	"github.com/rs/zerolog/log"
 	"github.com/zulfikawr/vbrowser/internal/browser"
@@ -73,8 +68,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	log.Info().Str("remote", r.RemoteAddr).Msg("websocket connected")
 
 	// Start a fresh session with current config
-	// (GStreamer handles capture now)
-	session, err := stream.NewSession("session-1", s.cfg)
+	session, err := stream.NewSession(s.cfg)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to create session")
 		s.sendError(conn, "Failed to create session")
@@ -137,9 +131,6 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		s.sendError(conn, "Failed to start session")
 		return
 	}
-
-	// Start cursor monitoring loop
-	go s.cursorLoop(ctx, conn)
 
 	// Handle incoming messages
 	for {
@@ -207,7 +198,7 @@ func (s *Server) handleSignalingMessage(session *stream.Session, conn *websocket
 			return fmt.Errorf("input message missing input")
 		}
 		s.handleInput(msg.Input)
-		// Store last mouse position for cursor detection
+		// Store last mouse position
 		if msg.Input.Type == "mousemove" {
 			lastX = msg.Input.X
 			lastY = msg.Input.Y
@@ -227,79 +218,6 @@ func (s *Server) handleSignalingMessage(session *stream.Session, conn *websocket
 	return nil
 }
 
-func (s *Server) cursorLoop(ctx context.Context, conn *websocket.Conn) {
-	ticker := time.NewTicker(200 * time.Millisecond)
-	defer ticker.Stop()
-
-	// Wait for Chromium CDP to be ready
-	var cdpClient *cdp.Client
-	for i := 0; i < 20; i++ {
-		dt := devtool.New("http://127.0.0.1:9222")
-		pt, err := dt.Get(ctx, devtool.Page)
-		if err == nil {
-			rpcConn, err := rpcc.DialContext(ctx, pt.WebSocketDebuggerURL)
-			if err == nil {
-				cdpClient = cdp.NewClient(rpcConn)
-				break
-			}
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	if cdpClient == nil {
-		log.Warn().Msg("CDP client not available, cursor sync disabled")
-		return
-	}
-
-	lastCursor := ""
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			// Inject JS to get the cursor style
-			// Also log the coordinates for server-side debugging
-			log.Debug().Int("x", lastX).Int("y", lastY).Msg("querying cursor")
-
-			evalArgs := runtime.NewEvaluateArgs(fmt.Sprintf(`
-				(function() {
-					const el = document.elementFromPoint(%d, %d);
-					if (!el) return 'default';
-					const style = window.getComputedStyle(el);
-					return style.cursor || 'default';
-				})()
-			`, lastX, lastY))
-
-			res, err := cdpClient.Runtime.Evaluate(ctx, evalArgs)
-			if err != nil {
-				log.Debug().Err(err).Msg("CDP eval failed")
-				continue
-			}
-
-			if res.Result.Value == nil {
-				continue
-			}
-
-			var cursor string
-			if err := json.Unmarshal(res.Result.Value, &cursor); err != nil {
-				log.Debug().Err(err).Msg("CDP unmarshal failed")
-				continue
-			}
-
-			if cursor != "" && cursor != lastCursor {
-				lastCursor = cursor
-				msg := SignalingMessage{
-					Type:   "cursor",
-					Cursor: cursor,
-				}
-				s.wsWriteMu.Lock()
-				_ = conn.WriteJSON(msg)
-				s.wsWriteMu.Unlock()
-			}
-		}
-	}
-}
-
 func (s *Server) handleConfigChange(cfg *ConfigMessage) {
 	log.Info().
 		Int("width", cfg.Width).
@@ -309,13 +227,10 @@ func (s *Server) handleConfigChange(cfg *ConfigMessage) {
 		Msg("updating vbrowser configuration")
 
 	// 1. Stop the current WebRTC/GStreamer session first
-	// This ensures GStreamer releases the X server before we kill Xvfb
 	s.mu.Lock()
 	if s.currentSession != nil {
 		log.Info().Msg("stopping current session for config change")
-		if err := s.currentSession.Stop(); err != nil {
-			log.Warn().Err(err).Msg("failed to stop session")
-		}
+		_ = s.currentSession.Stop()
 		s.currentSession = nil
 	}
 	s.mu.Unlock()
@@ -328,9 +243,11 @@ func (s *Server) handleConfigChange(cfg *ConfigMessage) {
 
 	// 3. Restart the browser manager with new resolution
 	chromiumPath, _ := browser.GetChromiumPath(s.cfg.Browser.DownloadDir)
-	if err := s.mgr.Restart(chromiumPath); err != nil {
-		log.Error().Err(err).Msg("failed to restart browser manager")
-	}
+	go func() {
+		if err := s.mgr.Restart(chromiumPath); err != nil {
+			log.Error().Err(err).Msg("failed to restart browser manager")
+		}
+	}()
 
 	log.Info().Msg("Configuration applied. Please refresh the page to start a new stream with the new resolution.")
 }
@@ -355,8 +272,7 @@ func (s *Server) handleInput(input *InputMessage) {
 			button = 5
 		}
 
-		// Run a single combined command to be faster and less error-prone
-		// mousemove x y click button
+		// Run a single combined command
 		var err error
 		for i := 0; i < 3; i++ {
 			cmd := exec.Command("xdotool", "mousemove", fmt.Sprintf("%d", input.X), fmt.Sprintf("%d", input.Y), "click", fmt.Sprintf("%d", button))
@@ -370,7 +286,7 @@ func (s *Server) handleInput(input *InputMessage) {
 		if err != nil {
 			log.Warn().Err(err).Msg("failed to execute xdotool wheel after retries")
 		}
-		return // Return early to avoid the generic xdotool run at the bottom
+		return
 	case "keydown":
 		args = []string{"key", "--clearmodifiers"}
 		if input.Ctrl {
@@ -387,7 +303,6 @@ func (s *Server) handleInput(input *InputMessage) {
 		}
 
 		key := input.Key
-		// Map some special keys
 		if len(key) > 1 {
 			switch key {
 			case "Enter":
@@ -419,7 +334,7 @@ func (s *Server) handleInput(input *InputMessage) {
 
 		args = append(args, key)
 	case "keyup":
-		return // xdotool key handles both down/up, so we skip explicit keyup to avoid double typing
+		return
 	default:
 		return
 	}
@@ -427,14 +342,12 @@ func (s *Server) handleInput(input *InputMessage) {
 	cmd := exec.Command("xdotool", args...)
 	cmd.Env = append(os.Environ(), "DISPLAY="+displayStr)
 
-	// Retry xdotool calls if they fail (likely during X11 restart)
 	var err error
 	for i := 0; i < 3; i++ {
 		err = cmd.Run()
 		if err == nil {
 			return
 		}
-		// If it failed, create a new command instance for the retry
 		cmd = exec.Command("xdotool", args...)
 		cmd.Env = append(os.Environ(), "DISPLAY="+displayStr)
 		time.Sleep(100 * time.Millisecond)
