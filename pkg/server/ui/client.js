@@ -12,9 +12,20 @@
     const selectBitrate = document.getElementById('select-bitrate');
     const btnApply = document.getElementById('btn-apply');
     
+    const connectionScreen = document.getElementById('connection-screen');
+    const connectionIcon = document.getElementById('connection-icon');
+    const connectionText = document.getElementById('connection-text');
+    const connectionSubtext = document.getElementById('connection-subtext');
+    const connectionSpinner = document.getElementById('connection-spinner');
+    
+    const videoContainer = document.getElementById('video-container');
+    
     function startPlayback() {
         video.muted = true;
+        
         video.play().then(() => {
+            videoContainer.classList.add('visible');
+            connectionScreen.classList.add('hidden');
             overlay.classList.remove('visible');
             console.log('Autoplay successful (muted)');
         }).catch(err => {
@@ -191,6 +202,34 @@
     function updateStatus(message, className) {
         status.textContent = '• ' + message;
         status.className = className;
+        
+        if (className === 'connecting') {
+            connectionScreen.classList.remove('hidden');
+            connectionText.textContent = 'Connecting to vbrowser...';
+            connectionIcon.innerHTML = `<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>`;
+            connectionSpinner.style.display = 'block';
+            video.classList.remove('visible');
+        } else if (className === 'connected') {
+            // Screen is hidden by startPlayback()
+        } else if (className === 'disconnected') {
+            connectionScreen.classList.remove('hidden');
+            connectionText.textContent = 'Disconnected';
+            connectionSubtext.textContent = 'The connection to the server was lost';
+            connectionIcon.innerHTML = `<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>`;
+            connectionSpinner.style.display = 'none';
+            videoContainer.classList.remove('visible');
+            
+            // Clear video src to ensure it doesn't show a frozen frame
+            video.srcObject = null;
+        }
     }
 
     function connect() {

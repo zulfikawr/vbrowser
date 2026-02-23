@@ -28,34 +28,72 @@
             justify-content: center;
             align-items: center;
             background: #000;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        #video-container.visible {
+            opacity: 1;
         }
         #video {
             width: 100%;
             height: 100%;
             object-fit: contain;
-            cursor: default; /* Restore normal cursor */
+            cursor: default;
             background: #000;
         }
-        #cursor {
-            display: none !important; /* Hide fake cursor */
-        }
         #status {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            padding: 6px 12px;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(4px);
-            border-radius: 20px;
-            font-size: 11px;
-            z-index: 1000;
-            pointer-events: none;
-            border: 1px solid rgba(255,255,255,0.1);
-            transition: color 0.3s;
+            display: none;
         }
-        #status.connecting { color: #ffa500; }
-        #status.connected { color: #7dff7d; }
-        #status.disconnected { color: #ff6b6b; }
+        
+        /* New Full-Page Disconnect State */
+        #connection-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: #000; /* Solid black */
+            z-index: 9999; /* Absolute top */
+            opacity: 1;
+            transition: opacity 0.3s ease;
+            pointer-events: auto;
+        }
+        #connection-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .status-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 0 20px rgba(255,255,255,0.1));
+        }
+        .status-text {
+            font-size: 18px;
+            font-weight: 500;
+            color: rgba(255,255,255,0.8);
+            margin-bottom: 8px;
+        }
+        .status-subtext {
+            font-size: 14px;
+            color: rgba(255,255,255,0.4);
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
         
         /* Dock UI */
         #dock-container {
@@ -220,14 +258,27 @@
         </div>
     </div>
 
-    <div id="status" class="connecting">• Connecting...</div>
+    <div id="connection-screen">
+        <div id="connection-icon" class="status-icon">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+        </div>
+        <div id="connection-spinner" class="spinner"></div>
+        <div id="connection-text" class="status-text">Connecting to vbrowser...</div>
+        <div id="connection-subtext" class="status-subtext">Establishing secure WebRTC stream</div>
+    </div>
+
     <div id="video-container">
         <div id="overlay">
             <div class="play-button"></div>
         </div>
         <div id="cursor"></div>
-        <video id="video" autoplay playsinline></video>
+        <video id="video" playsinline></video>
     </div>
+    <div id="status"></div>
     <script src="/client.js"></script>
 </body>
 </html>
