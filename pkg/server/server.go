@@ -25,6 +25,7 @@ type Server struct {
 	mgr            *browser.Manager
 	currentSession *stream.Session
 	mu             sync.Mutex
+	wsWriteMu      sync.Mutex
 }
 
 // New creates a new HTTP server.

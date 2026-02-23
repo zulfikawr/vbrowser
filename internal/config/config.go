@@ -88,8 +88,8 @@ func Defaults() *Config {
 			AutoDownload: true,
 			DownloadDir:  filepath.Join(homeDir, ".local/share/vbrowser/chromium"),
 			ProfileDir:   filepath.Join(homeDir, ".local/share/vbrowser/profile"),
-			WindowWidth:  1280,
-			WindowHeight: 720,
+			WindowWidth:  1920,
+			WindowHeight: 1080,
 			ExtraArgs:    []string{},
 		},
 		Display: DisplayConfig{
@@ -99,8 +99,8 @@ func Defaults() *Config {
 		},
 		Stream: StreamConfig{
 			VideoCodec:     "vp8",
-			TargetFPS:      15,
-			MaxBitrateKbps: 2000,
+			TargetFPS:      60,
+			MaxBitrateKbps: 8000,
 			QualityPreset:  "balanced",
 		},
 		Session: SessionConfig{

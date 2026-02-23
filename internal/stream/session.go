@@ -12,15 +12,14 @@ import (
 )
 
 type Session struct {
-	id                string
-	cfg               *config.Config
-	peerConnection    *webrtc.PeerConnection
-	videoTrack        *webrtc.TrackLocalStaticSample
-	pipeline          gst.Pipeline
-	stopChan          chan struct{}
-	wg                sync.WaitGroup
-	pendingCandidates []webrtc.ICECandidateInit
-	candidatesMux     sync.Mutex
+	id             string
+	cfg            *config.Config
+	peerConnection *webrtc.PeerConnection
+	videoTrack     *webrtc.TrackLocalStaticSample
+	pipeline       gst.Pipeline
+	stopChan       chan struct{}
+	stopOnce       sync.Once
+	wg             sync.WaitGroup
 }
 
 func NewSession(id string, cfg *config.Config) (*Session, error) {
@@ -91,7 +90,7 @@ func (s *Session) streamLoop(ctx context.Context) {
 			if !ok {
 				return
 			}
-			s.videoTrack.WriteSample(media.Sample{
+			_ = s.videoTrack.WriteSample(media.Sample{
 				Data:     sample.Data,
 				Duration: sample.Duration,
 			})
@@ -100,9 +99,11 @@ func (s *Session) streamLoop(ctx context.Context) {
 }
 
 func (s *Session) Stop() error {
-	close(s.stopChan)
-	s.pipeline.Destroy()
-	s.peerConnection.Close()
+	s.stopOnce.Do(func() {
+		close(s.stopChan)
+		s.pipeline.Destroy()
+		s.peerConnection.Close()
+	})
 	s.wg.Wait()
 	return nil
 }

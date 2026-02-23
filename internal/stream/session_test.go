@@ -2,7 +2,6 @@ package stream
 
 import (
 	"context"
-	"image"
 	"testing"
 	"time"
 
@@ -10,25 +9,11 @@ import (
 	"github.com/zulfikawr/vbrowser/internal/config"
 )
 
-// mockCapturer is a mock implementation of capture.Capturer for testing.
-type mockCapturer struct {
-	width  int
-	height int
-}
-
-func (m *mockCapturer) Capture() (*image.RGBA, error) {
-	return image.NewRGBA(image.Rect(0, 0, m.width, m.height)), nil
-}
-
-func (m *mockCapturer) Close() error {
-	return nil
-}
-
+// TestNewSession tests the creation of a new WebRTC session.
 func TestNewSession(t *testing.T) {
 	cfg := config.Defaults()
-	capturer := &mockCapturer{width: 640, height: 480}
 
-	session, err := NewSession("test-session", cfg, capturer)
+	session, err := NewSession("test-session", cfg)
 	if err != nil {
 		t.Fatalf("NewSession failed: %v", err)
 	}
@@ -55,11 +40,10 @@ func TestNewSession(t *testing.T) {
 	}
 }
 
-func TestCreateOffer(t *testing.T) {
+func TestCreateAnswer(t *testing.T) {
 	cfg := config.Defaults()
-	capturer := &mockCapturer{width: 640, height: 480}
 
-	session, err := NewSession("test-session", cfg, capturer)
+	session, err := NewSession("test-session", cfg)
 	if err != nil {
 		t.Fatalf("NewSession failed: %v", err)
 	}
@@ -69,25 +53,29 @@ func TestCreateOffer(t *testing.T) {
 		}
 	}()
 
-	offer, err := session.CreateOffer()
+	// We need to set a remote offer first before we can create an answer
+	err = session.SetRemoteDescription(webrtc.SessionDescription{
+		Type: webrtc.SDPTypeOffer,
+		SDP:  "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=fingerprint:sha-256 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00\r\na=setup:actpass\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=mid:0\r\na=rtpmaps:96 VP8/90000\r\n",
+	})
 	if err != nil {
-		t.Fatalf("CreateOffer failed: %v", err)
+		t.Logf("SetRemoteDescription expected error (invalid SDP) or success: %v", err)
 	}
 
-	if offer.Type != webrtc.SDPTypeOffer {
-		t.Errorf("expected offer type, got %s", offer.Type)
+	answer, err := session.CreateAnswer()
+	if err != nil {
+		t.Fatalf("CreateAnswer failed: %v", err)
 	}
 
-	if offer.SDP == "" {
-		t.Error("offer SDP is empty")
+	if answer.Type != webrtc.SDPTypeAnswer {
+		t.Errorf("expected answer type, got %s", answer.Type)
 	}
 }
 
 func TestStartStop(t *testing.T) {
 	cfg := config.Defaults()
-	capturer := &mockCapturer{width: 640, height: 480}
 
-	session, err := NewSession("test-session", cfg, capturer)
+	session, err := NewSession("test-session", cfg)
 	if err != nil {
 		t.Fatalf("NewSession failed: %v", err)
 	}

@@ -63,7 +63,7 @@ func NewEncoder(width, height, fps, bitrate int) (*Encoder, error) {
 	stderr, err := cmd.StderrPipe()
 	if err == nil {
 		go func() {
-			io.Copy(os.Stderr, stderr)
+			_, _ = io.Copy(os.Stderr, stderr)
 		}()
 	}
 
@@ -113,9 +113,9 @@ func (e *Encoder) Read(p []byte) (int, error) {
 // Close releases encoder resources.
 func (e *Encoder) Close() error {
 	log.Debug().Msg("closing FFmpeg encoder")
-	e.stdin.Close()
+	_ = e.stdin.Close()
 	if e.cmd != nil && e.cmd.Process != nil {
-		e.cmd.Process.Kill()
+		_ = e.cmd.Process.Kill()
 	}
 	return nil
 }

@@ -59,6 +59,15 @@ var startCmd = &cobra.Command{
 
 		log.Info().Str("chromium", chromiumPath).Msg("using Chromium")
 
+		// Log active configuration
+		log.Info().
+			Int("width", cfg.Browser.WindowWidth).
+			Int("height", cfg.Browser.WindowHeight).
+			Int("fps", cfg.Stream.TargetFPS).
+			Int("bitrate_kbps", cfg.Stream.MaxBitrateKbps).
+			Int("display", cfg.Display.DisplayNum).
+			Msg("active configuration")
+
 		// Write PID file
 		currentPid := os.Getpid()
 		if err := process.Write(cfg.PIDFile, currentPid); err != nil {

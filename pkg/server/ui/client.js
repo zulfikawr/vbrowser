@@ -119,12 +119,22 @@
     }, { passive: false });
 
     window.addEventListener('keydown', (e) => {
-        if (e.ctrlKey || e.metaKey) return;
+        // Only block browser shortcuts if we want to handle them in the virtual browser
+        // For example, let's allow Ctrl+A, Ctrl+C, Ctrl+V, etc.
+        const isModifier = e.ctrlKey || e.metaKey || e.altKey || e.shiftKey;
+        
+        // Prevent default for space to avoid page scrolling
+        if (e.key === ' ') e.preventDefault();
+
         send({
             type: 'input',
             input: {
                 type: 'keydown',
-                key: e.key
+                key: e.key,
+                ctrl: e.ctrlKey,
+                alt: e.altKey,
+                shift: e.shiftKey,
+                meta: e.metaKey
             }
         });
     });
@@ -179,12 +189,12 @@
     const maxReconnectAttempts = 5;
 
     function updateStatus(message, className) {
-        status.textContent = message;
+        status.textContent = '• ' + message;
         status.className = className;
     }
 
     function connect() {
-        updateStatus('● Connecting...', 'connecting');
+        updateStatus('Connecting...', 'connecting');
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws`;
         ws = new WebSocket(wsUrl);
@@ -205,7 +215,7 @@
         };
 
         ws.onclose = () => {
-            updateStatus('● Disconnected', 'disconnected');
+            updateStatus('Disconnected', 'disconnected');
             if (pc) {
                 pc.close();
                 pc = null;
@@ -226,7 +236,7 @@
             pc.ontrack = (event) => {
                 if (event.track.kind === 'video') {
                     video.srcObject = event.streams[0];
-                    updateStatus('● Connected', 'connected');
+                    updateStatus('Connected', 'connected');
                     startPlayback();
                 }
             };
@@ -262,13 +272,41 @@
             case 'candidate':
                 if (pc && msg.candidate) await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
                 break;
+            case 'config':
+                if (msg.config) {
+                    console.log('Syncing UI with server config:', msg.config);
+                    // Update dropdowns to match server state
+                    const resStr = `${msg.config.width}x${msg.config.height}`;
+                    
+                    // Check if resolution exists in options, otherwise add it or keep "auto"
+                    let resFound = false;
+                    for (let i = 0; i < selectRes.options.length; i++) {
+                        if (selectRes.options[i].value === resStr) {
+                            selectRes.selectedIndex = i;
+                            resFound = true;
+                            break;
+                        }
+                    }
+                    if (!resFound && msg.config.width > 0) {
+                        // If it's a custom resolution not in list, we'll just show it
+                        const opt = document.createElement('option');
+                        opt.value = resStr;
+                        opt.text = `${resStr} (Current)`;
+                        selectRes.add(opt);
+                        selectRes.value = resStr;
+                    }
+
+                    selectFps.value = msg.config.fps.toString();
+                    selectBitrate.value = msg.config.bitrate.toString();
+                }
+                break;
             case 'cursor':
                 if (msg.cursor) {
                     cursorEl.className = '';
                 }
                 break;
             case 'error':
-                updateStatus('● Error: ' + msg.error, 'disconnected');
+                updateStatus('Error: ' + msg.error, 'disconnected');
                 break;
         }
     }

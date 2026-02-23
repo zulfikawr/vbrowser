@@ -64,11 +64,11 @@ func (c *XvfbCapturer) Capture() (*image.RGBA, error) {
 	devNull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 	if devNull != nil {
 		oldStderr, _ := syscall.Dup(2)
-		syscall.Dup2(int(devNull.Fd()), 2)
+		_ = syscall.Dup2(int(devNull.Fd()), 2)
 		defer func() {
-			syscall.Dup2(oldStderr, 2)
-			syscall.Close(oldStderr)
-			devNull.Close()
+			_ = syscall.Dup2(oldStderr, 2)
+			_ = syscall.Close(oldStderr)
+			_ = devNull.Close()
 		}()
 	}
 

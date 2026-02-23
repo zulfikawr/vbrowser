@@ -21,8 +21,8 @@ func TestDefaults(t *testing.T) {
 		t.Errorf("expected width 1920, got %d", cfg.Browser.WindowWidth)
 	}
 
-	if cfg.Stream.TargetFPS != 30 {
-		t.Errorf("expected fps 30, got %d", cfg.Stream.TargetFPS)
+	if cfg.Stream.TargetFPS != 60 {
+		t.Errorf("expected fps 60, got %d", cfg.Stream.TargetFPS)
 	}
 }
 

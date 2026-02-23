@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -21,15 +22,30 @@ var stopCmd = &cobra.Command{
 		if err == nil && process.IsRunning(pid) {
 			log.Info().Int("pid", pid).Msg("stopping vbrowser daemon")
 			if proc, err := os.FindProcess(pid); err == nil {
-				proc.Signal(syscall.SIGTERM)
+				_ = proc.Signal(syscall.SIGTERM)
+
+				// Wait for process to exit
+				exited := false
+				for i := 0; i < 50; i++ { // Wait up to 5 seconds
+					if !process.IsRunning(pid) {
+						exited = true
+						break
+					}
+					time.Sleep(100 * time.Millisecond)
+				}
+
+				if !exited {
+					log.Warn().Int("pid", pid).Msg("vbrowser daemon did not exit gracefully, force killing")
+					_ = proc.Kill()
+				}
 			}
-			process.Remove(cfg.PIDFile)
+			_ = process.Remove(cfg.PIDFile)
 		}
 
 		// 2. Force kill any orphaned Chromium or Xvfb processes
 		log.Info().Msg("cleaning up orphaned chromium and xvfb processes...")
-		exec.Command("pkill", "-f", "chrome").Run()
-		exec.Command("pkill", "-f", "Xvfb").Run()
+		_ = exec.Command("pkill", "-f", "chrome").Run()
+		_ = exec.Command("pkill", "-f", "Xvfb").Run()
 
 		// 3. Clean up stale X11 lock files
 		displayNum := cfg.Display.DisplayNum

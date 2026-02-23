@@ -30,18 +30,30 @@ func StartXvfb(displayNum, width, height, depth int) (*exec.Cmd, error) {
 
 	log.Debug().Msgf("Starting Xvfb with args: %v", args)
 	cmd := exec.Command("Xvfb", args...)
-	
+
 	// Xvfb is extremely noisy on stderr with non-fatal xkbcomp warnings.
 	// We'll silence its stderr to keep our vbrowser logs clean.
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = nil 
+	cmd.Stderr = nil
 
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start Xvfb: %w", err)
 	}
 
-	// Wait a bit for Xvfb to be ready
-	time.Sleep(500 * time.Millisecond)
+	// Wait for X11 socket to be ready
+	socketPath := fmt.Sprintf("/tmp/.X11-unix/X%d", displayNum)
+	ready := false
+	for i := 0; i < 50; i++ { // Wait up to 5 seconds
+		if _, err := os.Stat(socketPath); err == nil {
+			ready = true
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if !ready {
+		log.Warn().Str("socket", socketPath).Msg("Xvfb socket did not appear in time")
+	}
 
 	log.Info().
 		Int("display", displayNum).

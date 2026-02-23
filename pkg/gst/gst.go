@@ -24,8 +24,8 @@ func init() {
 }
 
 type Sample struct {
-	Data      []byte
-	Duration  time.Duration
+	Data       []byte
+	Duration   time.Duration
 	IsKeyframe bool
 }
 

@@ -3,6 +3,7 @@ package stream
 import (
 	"image"
 	"image/color"
+	"io"
 	"testing"
 )
 
@@ -48,16 +49,23 @@ func TestEncode(t *testing.T) {
 		}
 	}
 
-	encoded, err := encoder.Encode(frame)
+	err = encoder.Encode(frame)
 	if err != nil {
 		t.Fatalf("Encode failed: %v", err)
 	}
 
-	if len(encoded) == 0 {
+	// Read encoded data from stdout
+	buf := make([]byte, 1024*1024)
+	n, err := encoder.Read(buf)
+	if err != nil && err != io.EOF {
+		t.Fatalf("Read failed: %v", err)
+	}
+
+	if n == 0 {
 		t.Error("encoded data is empty")
 	}
 
-	t.Logf("encoded frame size: %d bytes", len(encoded))
+	t.Logf("encoded frame size: %d bytes", n)
 }
 
 func TestClose(t *testing.T) {

@@ -93,6 +93,10 @@
             display: flex;
             align-items: center;
             gap: 24px;
+            box-shadow: none;
+            transition: box-shadow 0.3s ease;
+        }
+        #dock-container:hover #dock, #dock-container.visible #dock {
             box-shadow: 0 10px 40px rgba(0,0,0,0.6);
         }
         .dock-item {
@@ -200,7 +204,7 @@
                 <label>FPS</label>
                 <select id="select-fps">
                     <option value="60">60 FPS</option>
-                    <option value="30" selected>30 FPS</option>
+                    <option value="30">30 FPS</option>
                     <option value="15">15 FPS</option>
                 </select>
             </div>
@@ -208,7 +212,7 @@
                 <label>Quality</label>
                 <select id="select-bitrate">
                     <option value="8000">8 Mbps</option>
-                    <option value="4000" selected>4 Mbps</option>
+                    <option value="4000">4 Mbps</option>
                     <option value="2000">2 Mbps</option>
                 </select>
             </div>
@@ -216,7 +220,7 @@
         </div>
     </div>
 
-    <div id="status" class="connecting">● Connecting...</div>
+    <div id="status" class="connecting">• Connecting...</div>
     <div id="video-container">
         <div id="overlay">
             <div class="play-button"></div>
