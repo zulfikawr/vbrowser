@@ -30,29 +30,45 @@ void XCursorPosition(int *x, int *y) {
   XQueryPointer(display, root, &root, &window, x, y, &i, &i, &mask);
 }
 
-void XScroll(int deltaX, int deltaY) {
+void XScroll(double deltaX, double deltaY) {
   Display *display = getXDisplay();
 
+  // Handle fractional scrolling by accumulating
+  static double accX = 0.0;
+  static double accY = 0.0;
+  
+  accX += deltaX;
+  accY += deltaY;
+  
+  int scrollX = (int)accX;
+  int scrollY = (int)accY;
+  
+  accX -= scrollX;
+  accY -= scrollY;
+
   int ydir;
-  if (deltaY > 0) {
-    ydir = 4; // button 4 is up
-  } else {
+  if (scrollY > 0) {
     ydir = 5; // button 5 is down
+  } else {
+    ydir = 4; // button 4 is up
   }
 
   int xdir;
-  if (deltaX > 0) {
-    xdir = 6; // button 6 is right
-  } else {
+  if (scrollX > 0) {
     xdir = 7; // button 7 is left
+  } else {
+    xdir = 6; // button 6 is right
   }
 
-  for (int i = 0; i < abs(deltaY); i++) {
+  int absY = abs(scrollY);
+  int absX = abs(scrollX);
+
+  for (int i = 0; i < absY; i++) {
     XTestFakeButtonEvent(display, ydir, 1, CurrentTime);
     XTestFakeButtonEvent(display, ydir, 0, CurrentTime);
   }
 
-  for (int i = 0; i < abs(deltaX); i++) {
+  for (int i = 0; i < absX; i++) {
     XTestFakeButtonEvent(display, xdir, 1, CurrentTime);
     XTestFakeButtonEvent(display, xdir, 0, CurrentTime);
   }

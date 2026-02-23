@@ -21,6 +21,7 @@ var uiFiles embed.FS
 // Server manages the HTTP server.
 type Server struct {
 	cfg            *config.Config
+	configPath     string
 	server         *http.Server
 	mgr            *browser.Manager
 	currentSession *stream.Session
@@ -29,10 +30,11 @@ type Server struct {
 }
 
 // New creates a new HTTP server.
-func New(cfg *config.Config, mgr *browser.Manager) *Server {
+func New(cfg *config.Config, mgr *browser.Manager, configPath string) *Server {
 	return &Server{
-		cfg: cfg,
-		mgr: mgr,
+		cfg:        cfg,
+		configPath: configPath,
+		mgr:        mgr,
 	}
 }
 

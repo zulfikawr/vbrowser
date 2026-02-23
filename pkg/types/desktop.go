@@ -54,7 +54,7 @@ type DesktopManager interface {
 	// xorg
 	Move(x, y int)
 	GetCursorPosition() (int, int)
-	Scroll(deltaX, deltaY int, controlKey bool)
+	Scroll(deltaX, deltaY float64, controlKey bool)
 	ButtonDown(code uint32) error
 	KeyDown(code uint32) error
 	ButtonUp(code uint32) error

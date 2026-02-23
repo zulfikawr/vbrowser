@@ -69,7 +69,7 @@ func (m *Manager) Start(chromiumPath string) error {
 
 		// Open X11 display for native input handling
 		displayStr := fmt.Sprintf(":%d", m.cfg.Display.DisplayNum)
-		
+
 		// Set DISPLAY env variable so C.XOpenDisplay(NULL) or C.XOpenDisplay(":99") works
 		os.Setenv("DISPLAY", displayStr)
 

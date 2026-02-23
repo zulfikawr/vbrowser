@@ -89,7 +89,7 @@ var startCmd = &cobra.Command{
 			Msg("vbrowser started")
 
 		// Start HTTP server
-		srv := server.New(cfg, mgr)
+		srv := server.New(cfg, mgr, cfgFile)
 		if err := srv.Start(); err != nil {
 			if err := mgr.Stop(); err != nil {
 				log.Warn().Err(err).Msg("failed to stop manager")

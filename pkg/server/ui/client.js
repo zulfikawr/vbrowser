@@ -112,22 +112,37 @@
         });
     });
 
-    let lastWheelTime = 0;
     video.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const now = Date.now();
-        if (now - lastWheelTime < 50) return; // Throttling
-        lastWheelTime = now;
-
         const pos = getMousePos(e);
+        
+        let deltaX = e.deltaX;
+        let deltaY = e.deltaY;
+        
+        // Handle different deltaMode values
+        if (e.deltaMode === 1) { // DOM_DELTA_LINE
+            deltaX *= 15;
+            deltaY *= 15;
+        } else if (e.deltaMode === 2) { // DOM_DELTA_PAGE
+            deltaX *= 100;
+            deltaY *= 100;
+        }
+        
+        // Use fractional scaling for smoother feel
+        deltaX = deltaX / 100;
+        deltaY = deltaY / 100;
+        
+        // Skip if too small
+        if (Math.abs(deltaX) < 0.01 && Math.abs(deltaY) < 0.01) return;
+        
         send({
             type: 'input',
             input: {
                 type: 'wheel',
                 x: pos.x,
                 y: pos.y,
-                deltaX: Math.round(e.deltaX),
-                deltaY: Math.round(e.deltaY)
+                deltaX: deltaX,
+                deltaY: deltaY
             }
         });
     }, { passive: false });
@@ -193,8 +208,9 @@
         btnApply.disabled = true;
         
         setTimeout(() => {
-            window.location.reload();
-        }, 3000);
+            btnApply.textContent = 'APPLY CHANGES';
+            btnApply.disabled = false;
+        }, 5000);
     });
 
     let ws = null;

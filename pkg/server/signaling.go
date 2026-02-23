@@ -39,17 +39,17 @@ type ConfigMessage struct {
 
 // InputMessage represents a user input event.
 type InputMessage struct {
-	Type   string `json:"type"`
-	X      int    `json:"x,omitempty"`
-	Y      int    `json:"y,omitempty"`
-	DeltaX int    `json:"deltaX,omitempty"`
-	DeltaY int    `json:"deltaY,omitempty"`
-	Button int    `json:"button,omitempty"`
-	Key    string `json:"key,omitempty"`
-	Ctrl   bool   `json:"ctrl,omitempty"`
-	Alt    bool   `json:"alt,omitempty"`
-	Shift  bool   `json:"shift,omitempty"`
-	Meta   bool   `json:"meta,omitempty"`
+	Type   string  `json:"type"`
+	X      int     `json:"x,omitempty"`
+	Y      int     `json:"y,omitempty"`
+	DeltaX float64 `json:"deltaX,omitempty"`
+	DeltaY float64 `json:"deltaY,omitempty"`
+	Button int     `json:"button,omitempty"`
+	Key    string  `json:"key,omitempty"`
+	Ctrl   bool    `json:"ctrl,omitempty"`
+	Alt    bool    `json:"alt,omitempty"`
+	Shift  bool    `json:"shift,omitempty"`
+	Meta   bool    `json:"meta,omitempty"`
 }
 
 // handleWebSocket handles WebSocket connections for WebRTC signaling.
@@ -231,6 +231,13 @@ func (s *Server) handleConfigChange(cfg *ConfigMessage) {
 	s.cfg.Browser.WindowHeight = cfg.Height
 	s.cfg.Stream.TargetFPS = cfg.FPS
 	s.cfg.Stream.MaxBitrateKbps = cfg.Bitrate
+
+	// Save config to persist changes
+	if s.configPath != "" {
+		if err := s.cfg.Save(s.configPath); err != nil {
+			log.Warn().Err(err).Msg("failed to save config")
+		}
+	}
 
 	// 3. Restart the browser manager with new resolution
 	chromiumPath, _ := browser.GetChromiumPath(s.cfg.Browser.DownloadDir)

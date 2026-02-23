@@ -22,7 +22,7 @@ void XDisplayClose(void);
 
 void XMove(int x, int y);
 void XCursorPosition(int *x, int *y);
-void XScroll(int deltaX, int deltaY);
+void XScroll(double deltaX, double deltaY);
 void XButton(unsigned int button, int down);
 
 typedef struct xkeyentry_t {

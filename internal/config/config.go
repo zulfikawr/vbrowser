@@ -88,8 +88,8 @@ func Defaults() *Config {
 			AutoDownload: true,
 			DownloadDir:  filepath.Join(homeDir, ".local/share/vbrowser/chromium"),
 			ProfileDir:   filepath.Join(homeDir, ".local/share/vbrowser/profile"),
-			WindowWidth:  1920,
-			WindowHeight: 1080,
+			WindowWidth:  1280,
+			WindowHeight: 720,
 			ExtraArgs:    []string{},
 		},
 		Display: DisplayConfig{
@@ -100,7 +100,7 @@ func Defaults() *Config {
 		Stream: StreamConfig{
 			VideoCodec:     "vp8",
 			TargetFPS:      60,
-			MaxBitrateKbps: 8000,
+			MaxBitrateKbps: 4000,
 			QualityPreset:  "balanced",
 		},
 		Session: SessionConfig{
@@ -177,6 +177,26 @@ func (c *Config) Validate() error {
 
 	if c.Display.DisplayNum < 0 || c.Display.DisplayNum > 999 {
 		return fmt.Errorf("display.display_num must be between 0 and 999, got %d", c.Display.DisplayNum)
+	}
+
+	return nil
+}
+
+// Save writes the configuration to the specified path.
+func (c *Config) Save(path string) error {
+	path = expandPath(path)
+
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("create config dir: %w", err)
+	}
+
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("write config: %w", err)
 	}
 
 	return nil

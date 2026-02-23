@@ -11,7 +11,7 @@ import (
 
 func TestNew(t *testing.T) {
 	cfg := config.Defaults()
-	srv := New(cfg, nil)
+	srv := New(cfg, nil, "")
 
 	if srv == nil {
 		t.Fatal("New returned nil")
@@ -25,7 +25,7 @@ func TestNew(t *testing.T) {
 func TestStartStop(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Server.Port = 17070 // Use different port for testing
-	srv := New(cfg, nil)
+	srv := New(cfg, nil, "")
 
 	if err := srv.Start(); err != nil {
 		t.Fatalf("Start failed: %v", err)
@@ -57,7 +57,7 @@ func TestStartStop(t *testing.T) {
 func TestHandleIndex(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Server.Port = 17071
-	srv := New(cfg, nil)
+	srv := New(cfg, nil, "")
 
 	if err := srv.Start(); err != nil {
 		t.Fatalf("Start failed: %v", err)
@@ -89,7 +89,7 @@ func TestHandleIndex(t *testing.T) {
 func TestHandle404(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Server.Port = 17072
-	srv := New(cfg, nil)
+	srv := New(cfg, nil, "")
 
 	if err := srv.Start(); err != nil {
 		t.Fatalf("Start failed: %v", err)

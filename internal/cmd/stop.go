@@ -66,6 +66,9 @@ var stopCmd = &cobra.Command{
 		downloadLock := filepath.Join(cfg.Browser.DownloadDir, "vbrowser.lock")
 		os.Remove(downloadLock)
 
+		// 5. Remove PID file unconditionally
+		_ = process.Remove(cfg.PIDFile)
+
 		log.Info().Msg("vbrowser cleanup complete")
 		return nil
 	},
