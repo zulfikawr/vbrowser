@@ -310,7 +310,10 @@
                 }
             };
 
-            const offer = await pc.createOffer({ offerToReceiveVideo: true });
+            const offer = await pc.createOffer({ 
+                offerToReceiveVideo: true,
+                offerToReceiveAudio: true 
+            });
             await pc.setLocalDescription(offer);
 
             await new Promise((resolve) => {

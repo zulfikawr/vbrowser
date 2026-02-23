@@ -13,7 +13,7 @@ import (
 func TestNewSession(t *testing.T) {
 	cfg := config.Defaults()
 
-	session, err := NewSession("test-session", cfg)
+	session, err := NewSession(cfg)
 	if err != nil {
 		t.Fatalf("NewSession failed: %v", err)
 	}
@@ -27,23 +27,15 @@ func TestNewSession(t *testing.T) {
 		t.Fatal("session is nil")
 	}
 
-	if session.id != "test-session" {
-		t.Errorf("expected id 'test-session', got %s", session.id)
-	}
-
 	if session.peerConnection == nil {
 		t.Error("peer connection is nil")
-	}
-
-	if session.videoTrack == nil {
-		t.Error("video track is nil")
 	}
 }
 
 func TestCreateAnswer(t *testing.T) {
 	cfg := config.Defaults()
 
-	session, err := NewSession("test-session", cfg)
+	session, err := NewSession(cfg)
 	if err != nil {
 		t.Fatalf("NewSession failed: %v", err)
 	}
@@ -75,7 +67,7 @@ func TestCreateAnswer(t *testing.T) {
 func TestStartStop(t *testing.T) {
 	cfg := config.Defaults()
 
-	session, err := NewSession("test-session", cfg)
+	session, err := NewSession(cfg)
 	if err != nil {
 		t.Fatalf("NewSession failed: %v", err)
 	}

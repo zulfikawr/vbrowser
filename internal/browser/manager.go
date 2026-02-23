@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/zulfikawr/vbrowser/internal/config"
 	"github.com/zulfikawr/vbrowser/internal/platform"
+	"github.com/zulfikawr/vbrowser/pkg/xorg"
 )
 
 // Manager manages the lifecycle of Chromium and Xvfb processes.
@@ -29,25 +30,20 @@ func NewManager(cfg *config.Config) *Manager {
 }
 
 func (m *Manager) initPulseAudio() string {
-	// 1. Kill any existing PulseAudio to start fresh
 	_ = exec.Command("pulseaudio", "--kill").Run()
 	time.Sleep(500 * time.Millisecond)
 
-	// 2. Start PulseAudio with minimal settings
 	_ = exec.Command("pulseaudio", "--start", "--exit-idle-time=-1").Run()
 	time.Sleep(500 * time.Millisecond)
 
-	// 3. Unload suspend module
 	_ = exec.Command("pactl", "unload-module", "module-suspend-on-idle").Run()
 
 	sinkName := fmt.Sprintf("vbrowser-%d", m.cfg.Display.DisplayNum)
 
-	// 4. Load the null-sink
 	_ = exec.Command("pactl", "load-module", "module-null-sink",
 		fmt.Sprintf("sink_name=%s", sinkName),
 		fmt.Sprintf("sink_properties=device.description=%s", sinkName)).Run()
 
-	// 5. Force it as default
 	_ = exec.Command("pactl", "set-default-sink", sinkName).Run()
 	_ = exec.Command("pactl", "set-sink-mute", sinkName, "0").Run()
 	_ = exec.Command("pactl", "set-sink-volume", sinkName, "100%").Run()
@@ -70,6 +66,25 @@ func (m *Manager) Start(chromiumPath string) error {
 			return fmt.Errorf("start xvfb: %w", err)
 		}
 		m.xvfbCmd = xvfb
+
+		// Open X11 display for native input handling
+		displayStr := fmt.Sprintf(":%d", m.cfg.Display.DisplayNum)
+		
+		// Set DISPLAY env variable so C.XOpenDisplay(NULL) or C.XOpenDisplay(":99") works
+		os.Setenv("DISPLAY", displayStr)
+
+		// Wait a bit for Xvfb to be fully ready before opening the display
+		success := false
+		for i := 0; i < 20; i++ {
+			if xorg.DisplayOpen(displayStr) {
+				success = true
+				break
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+		if !success {
+			log.Error().Str("display", displayStr).Msg("failed to open display for xorg after 20 retries")
+		}
 	}
 
 	args := m.buildChromiumArgs()
@@ -82,7 +97,6 @@ func (m *Manager) Start(chromiumPath string) error {
 		m.chromiumCmd.Env = append(os.Environ(),
 			fmt.Sprintf("DISPLAY=:%d", m.cfg.Display.DisplayNum),
 			fmt.Sprintf("PULSE_SINK=%s", sinkName),
-			"PULSE_SERVER=unix:/run/user/1000/pulse/native",
 		)
 	}
 
@@ -114,6 +128,7 @@ func (m *Manager) Stop() error {
 		_ = m.chromiumCmd.Wait()
 	}
 
+	xorg.DisplayClose()
 	m.stopXvfb()
 	_ = exec.Command("pulseaudio", "--kill").Run()
 

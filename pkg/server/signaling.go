@@ -4,15 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
-	"os/exec"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 	"github.com/rs/zerolog/log"
 	"github.com/zulfikawr/vbrowser/internal/browser"
 	"github.com/zulfikawr/vbrowser/internal/stream"
+	"github.com/zulfikawr/vbrowser/pkg/xorg"
 )
 
 var upgrader = websocket.Upgrader{
@@ -38,8 +36,6 @@ type ConfigMessage struct {
 	FPS     int `json:"fps"`
 	Bitrate int `json:"bitrate"`
 }
-
-var lastX, lastY int
 
 // InputMessage represents a user input event.
 type InputMessage struct {
@@ -198,11 +194,6 @@ func (s *Server) handleSignalingMessage(session *stream.Session, conn *websocket
 			return fmt.Errorf("input message missing input")
 		}
 		s.handleInput(msg.Input)
-		// Store last mouse position
-		if msg.Input.Type == "mousemove" {
-			lastX = msg.Input.X
-			lastY = msg.Input.Y
-		}
 		return nil
 
 	case "config":
@@ -253,109 +244,86 @@ func (s *Server) handleConfigChange(cfg *ConfigMessage) {
 }
 
 func (s *Server) handleInput(input *InputMessage) {
-	displayStr := fmt.Sprintf(":%d", s.cfg.Display.DisplayNum)
-	var args []string
-
 	switch input.Type {
 	case "mousemove":
-		args = []string{"mousemove", fmt.Sprintf("%d", input.X), fmt.Sprintf("%d", input.Y)}
+		xorg.Move(input.X, input.Y)
 	case "mousedown":
-		button := input.Button + 1 // xdotool uses 1-based buttons
-		args = []string{"mousedown", fmt.Sprintf("%d", button)}
+		_ = xorg.ButtonDown(uint32(input.Button + 1))
 	case "mouseup":
-		button := input.Button + 1
-		args = []string{"mouseup", fmt.Sprintf("%d", button)}
+		_ = xorg.ButtonUp(uint32(input.Button + 1))
 	case "wheel":
-		displayStr := fmt.Sprintf(":%d", s.cfg.Display.DisplayNum)
-		button := 4
-		if input.DeltaY > 0 {
-			button = 5
-		}
-
-		// Run a single combined command
-		var err error
-		for i := 0; i < 3; i++ {
-			cmd := exec.Command("xdotool", "mousemove", fmt.Sprintf("%d", input.X), fmt.Sprintf("%d", input.Y), "click", fmt.Sprintf("%d", button))
-			cmd.Env = append(os.Environ(), "DISPLAY="+displayStr)
-			err = cmd.Run()
-			if err == nil {
-				return
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-		if err != nil {
-			log.Warn().Err(err).Msg("failed to execute xdotool wheel after retries")
-		}
-		return
+		xorg.Scroll(input.DeltaX, input.DeltaY, false)
 	case "keydown":
-		args = []string{"key", "--clearmodifiers"}
+		// Handle modifiers
 		if input.Ctrl {
-			args = append(args, "ctrl")
+			xorg.SetKeyboardModifier(xorg.KbdModControl, true)
 		}
 		if input.Alt {
-			args = append(args, "alt")
+			xorg.SetKeyboardModifier(xorg.KbdModAlt, true)
 		}
 		if input.Shift {
-			args = append(args, "shift")
+			xorg.SetKeyboardModifier(xorg.KbdModShift, true)
 		}
 		if input.Meta {
-			args = append(args, "meta")
+			xorg.SetKeyboardModifier(xorg.KbdModMeta, true)
 		}
 
-		key := input.Key
-		if len(key) > 1 {
-			switch key {
-			case "Enter":
-				key = "Return"
-			case " ":
-				key = "space"
-			case "Backspace":
-				key = "BackSpace"
-			case "ArrowLeft":
-				key = "Left"
-			case "ArrowRight":
-				key = "Right"
-			case "ArrowUp":
-				key = "Up"
-			case "ArrowDown":
-				key = "Down"
-			case "Control":
-				return
-			case "Alt":
-				return
-			case "Shift":
-				return
-			case "Meta":
-				return
-			}
-		} else if key == " " {
-			key = "space"
-		}
-
-		args = append(args, key)
+		// Convert JS key to X11 keysym (Neko approach uses a map, we'll use a basic switch for now)
+		keysym := getKeysym(input.Key)
+		_ = xorg.KeyDown(keysym)
 	case "keyup":
-		return
-	default:
-		return
-	}
-
-	cmd := exec.Command("xdotool", args...)
-	cmd.Env = append(os.Environ(), "DISPLAY="+displayStr)
-
-	var err error
-	for i := 0; i < 3; i++ {
-		err = cmd.Run()
-		if err == nil {
-			return
+		// Handle modifiers release
+		if input.Ctrl {
+			xorg.SetKeyboardModifier(xorg.KbdModControl, false)
 		}
-		cmd = exec.Command("xdotool", args...)
-		cmd.Env = append(os.Environ(), "DISPLAY="+displayStr)
-		time.Sleep(100 * time.Millisecond)
-	}
+		if input.Alt {
+			xorg.SetKeyboardModifier(xorg.KbdModAlt, false)
+		}
+		if input.Shift {
+			xorg.SetKeyboardModifier(xorg.KbdModShift, false)
+		}
+		if input.Meta {
+			xorg.SetKeyboardModifier(xorg.KbdModMeta, false)
+		}
 
-	if err != nil {
-		log.Warn().Err(err).Str("type", input.Type).Msg("failed to execute xdotool after retries")
+		keysym := getKeysym(input.Key)
+		_ = xorg.KeyUp(keysym)
 	}
+}
+
+func getKeysym(key string) uint32 {
+	if len(key) == 1 {
+		return uint32(key[0])
+	}
+	switch key {
+	case "Enter":
+		return 0xff0d // XK_Return
+	case "Backspace":
+		return 0xff08 // XK_BackSpace
+	case "Tab":
+		return 0xff09 // XK_Tab
+	case "Escape":
+		return 0xff1b // XK_Escape
+	case "Delete":
+		return 0xffff // XK_Delete
+	case "ArrowUp":
+		return 0xff52 // XK_Up
+	case "ArrowDown":
+		return 0xff54 // XK_Down
+	case "ArrowLeft":
+		return 0xff51 // XK_Left
+	case "ArrowRight":
+		return 0xff53 // XK_Right
+	case "Control":
+		return 0xffe3 // XK_Control_L
+	case "Alt":
+		return 0xffe9 // XK_Alt_L
+	case "Shift":
+		return 0xffe1 // XK_Shift_L
+	case "Meta":
+		return 0xffeb // XK_Super_L
+	}
+	return 0
 }
 
 func (s *Server) sendError(conn *websocket.Conn, message string) {

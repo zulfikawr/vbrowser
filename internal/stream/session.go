@@ -90,39 +90,50 @@ func (s *Session) Start(ctx context.Context) error {
 
 	// 4. Start GStreamer Audio Pipeline (Neko-style)
 	// captures from the .monitor of our null sink
-	sinkName := fmt.Sprintf("vbrowser-%d.monitor", s.cfg.Display.DisplayNum)
+	sinkName := fmt.Sprintf("vbrowser-%d", s.cfg.Display.DisplayNum)
 	audioPipelineStr := fmt.Sprintf(
-		"pulsesrc device=%s ! audio/x-raw,channels=2 ! audioconvert ! opusenc bitrate=128000 ! "+
+		"pulsesrc device=%s.monitor ! audio/x-raw,channels=2 ! audioconvert ! opusenc bitrate=128000 ! "+
 			"appsink name=appsink emit-signals=true sync=false",
 		sinkName,
 	)
 
+	log.Info().Str("audio_pipeline", audioPipelineStr).Msg("creating audio pipeline")
 	audioPipeline, err := gst.CreatePipeline(audioPipelineStr)
 	if err != nil {
+		log.Error().Err(err).Msg("failed to create audio pipeline")
 		return err
 	}
 
 	// 5. Start pipelines
 	videoPipeline.Play()
 	audioPipeline.Play()
+	log.Info().Msg("video and audio pipelines started")
 
 	// 6. Handle samples in background
 	go func() {
+		videoSamples := 0
+		audioSamples := 0
 		for {
 			select {
 			case <-s.done:
+				log.Info().Int("video_samples", videoSamples).Int("audio_samples", audioSamples).Msg("stopping pipelines")
 				videoPipeline.Destroy()
 				audioPipeline.Destroy()
 				return
 			case <-ctx.Done():
-				s.Stop()
+				_ = s.Stop()
 				return
 			case sample := <-videoPipeline.Sample():
+				videoSamples++
 				_ = s.videoTrack.WriteSample(media.Sample{
 					Data:     sample.Data,
 					Duration: sample.Duration,
 				})
 			case sample := <-audioPipeline.Sample():
+				audioSamples++
+				if audioSamples%100 == 0 {
+					log.Debug().Int("count", audioSamples).Msg("audio samples received")
+				}
 				_ = s.audioTrack.WriteSample(media.Sample{
 					Data:     sample.Data,
 					Duration: sample.Duration,

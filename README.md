@@ -10,6 +10,7 @@ A single Go binary that launches a Chromium instance on a remote server and stre
 - ⚡ Buttery smooth 60 FPS - ultra-low latency streaming
 - 🔄 Auto-downloads correct Chromium build for your OS
 - 🎥 Native GStreamer VP8 encoding (Mimicking Neko architecture)
+- 🔊 Full audio support via PulseAudio + Opus codec
 - 🔒 Secure over SSH tunnel (no cloud dependency)
 - 🖱️ Full interaction support (Mouse, Keyboard, Scroll, Shortcuts)
 - 💾 Persistent browser profile (cookies, bookmarks, passwords)
@@ -23,9 +24,10 @@ A single Go binary that launches a Chromium instance on a remote server and stre
 ```bash
 # Install dependencies (Ubuntu/Debian)
 sudo apt-get update
-sudo apt-get install -y xvfb xdotool libgstreamer1.0-dev \
+sudo apt-get install -y xvfb xdotool pulseaudio libgstreamer1.0-dev \
     gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-    gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
+    gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
+    gstreamer1.0-pulseaudio
 
 # Clone the repository
 git clone https://github.com/zulfikawr/vbrowser.git
@@ -53,6 +55,7 @@ ssh -L 7070:localhost:7070 user@remote-server
 ### Server (Linux)
 - Go 1.21+ (for building)
 - GStreamer 1.0+: `libgstreamer1.0-dev` and plugins (base, good, bad, ugly)
+- PulseAudio: `pulseaudio` and `gstreamer1.0-pulseaudio`
 - Xvfb & xdotool: `sudo apt-get install xvfb xdotool`
 - ~500MB disk space for Chromium
 - ~500MB RAM
@@ -171,7 +174,7 @@ vbrowser/
 
 ### Missing Dependencies
 ```bash
-sudo apt-get install xvfb xdotool libgstreamer1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
+sudo apt-get install xvfb xdotool pulseaudio libgstreamer1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-pulseaudio
 ```
 
 ### Port already in use
