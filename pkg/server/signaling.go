@@ -45,11 +45,7 @@ type InputMessage struct {
 	DeltaX float64 `json:"deltaX,omitempty"`
 	DeltaY float64 `json:"deltaY,omitempty"`
 	Button int     `json:"button,omitempty"`
-	Key    string  `json:"key,omitempty"`
-	Ctrl   bool    `json:"ctrl,omitempty"`
-	Alt    bool    `json:"alt,omitempty"`
-	Shift  bool    `json:"shift,omitempty"`
-	Meta   bool    `json:"meta,omitempty"`
+	Keysym uint32  `json:"keysym,omitempty"`
 }
 
 // handleWebSocket handles WebSocket connections for WebRTC signaling.
@@ -217,7 +213,10 @@ func (s *Server) handleConfigChange(cfg *ConfigMessage) {
 		Int("bitrate", cfg.Bitrate).
 		Msg("updating vbrowser configuration")
 
-	// 1. Stop the current WebRTC/GStreamer session first
+	// 1. Stop input batcher to prevent X11 calls during restart
+	s.inputBatcher.Stop()
+
+	// 2. Stop the current WebRTC/GStreamer session
 	s.mu.Lock()
 	if s.currentSession != nil {
 		log.Info().Msg("stopping current session for config change")
@@ -226,7 +225,7 @@ func (s *Server) handleConfigChange(cfg *ConfigMessage) {
 	}
 	s.mu.Unlock()
 
-	// 2. Update global config
+	// 3. Update global config
 	s.cfg.Browser.WindowWidth = cfg.Width
 	s.cfg.Browser.WindowHeight = cfg.Height
 	s.cfg.Stream.TargetFPS = cfg.FPS
@@ -239,12 +238,16 @@ func (s *Server) handleConfigChange(cfg *ConfigMessage) {
 		}
 	}
 
-	// 3. Restart the browser manager with new resolution
+	// 4. Restart the browser manager with new resolution
 	chromiumPath, _ := browser.GetChromiumPath(s.cfg.Browser.DownloadDir)
 	go func() {
 		if err := s.mgr.Restart(chromiumPath); err != nil {
 			log.Error().Err(err).Msg("failed to restart browser manager")
 		}
+		// Recreate input batcher after restart
+		s.inputBatcher = NewInputBatcher(func(x, y int) {
+			xorg.Move(x, y)
+		})
 	}()
 
 	log.Info().Msg("Configuration applied. Please refresh the page to start a new stream with the new resolution.")
@@ -253,84 +256,24 @@ func (s *Server) handleConfigChange(cfg *ConfigMessage) {
 func (s *Server) handleInput(input *InputMessage) {
 	switch input.Type {
 	case "mousemove":
-		xorg.Move(input.X, input.Y)
+		s.inputBatcher.AddMouseMove(input.X, input.Y)
 	case "mousedown":
+		s.inputBatcher.Flush() // Flush pending moves before click
 		_ = xorg.ButtonDown(uint32(input.Button + 1))
 	case "mouseup":
 		_ = xorg.ButtonUp(uint32(input.Button + 1))
 	case "wheel":
+		s.inputBatcher.Flush() // Flush pending moves before scroll
 		xorg.Scroll(input.DeltaX, input.DeltaY, false)
 	case "keydown":
-		// Handle modifiers
-		if input.Ctrl {
-			xorg.SetKeyboardModifier(xorg.KbdModControl, true)
+		if input.Keysym != 0 {
+			_ = xorg.KeyDown(input.Keysym)
 		}
-		if input.Alt {
-			xorg.SetKeyboardModifier(xorg.KbdModAlt, true)
-		}
-		if input.Shift {
-			xorg.SetKeyboardModifier(xorg.KbdModShift, true)
-		}
-		if input.Meta {
-			xorg.SetKeyboardModifier(xorg.KbdModMeta, true)
-		}
-
-		// Convert JS key to X11 keysym (Neko approach uses a map, we'll use a basic switch for now)
-		keysym := getKeysym(input.Key)
-		_ = xorg.KeyDown(keysym)
 	case "keyup":
-		// Handle modifiers release
-		if input.Ctrl {
-			xorg.SetKeyboardModifier(xorg.KbdModControl, false)
+		if input.Keysym != 0 {
+			_ = xorg.KeyUp(input.Keysym)
 		}
-		if input.Alt {
-			xorg.SetKeyboardModifier(xorg.KbdModAlt, false)
-		}
-		if input.Shift {
-			xorg.SetKeyboardModifier(xorg.KbdModShift, false)
-		}
-		if input.Meta {
-			xorg.SetKeyboardModifier(xorg.KbdModMeta, false)
-		}
-
-		keysym := getKeysym(input.Key)
-		_ = xorg.KeyUp(keysym)
 	}
-}
-
-func getKeysym(key string) uint32 {
-	if len(key) == 1 {
-		return uint32(key[0])
-	}
-	switch key {
-	case "Enter":
-		return 0xff0d // XK_Return
-	case "Backspace":
-		return 0xff08 // XK_BackSpace
-	case "Tab":
-		return 0xff09 // XK_Tab
-	case "Escape":
-		return 0xff1b // XK_Escape
-	case "Delete":
-		return 0xffff // XK_Delete
-	case "ArrowUp":
-		return 0xff52 // XK_Up
-	case "ArrowDown":
-		return 0xff54 // XK_Down
-	case "ArrowLeft":
-		return 0xff51 // XK_Left
-	case "ArrowRight":
-		return 0xff53 // XK_Right
-	case "Control":
-		return 0xffe3 // XK_Control_L
-	case "Alt":
-		return 0xffe9 // XK_Alt_L
-	case "Shift":
-		return 0xffe1 // XK_Shift_L
-	case "Meta":
-		return 0xffeb // XK_Super_L
-	}
-	return 0
 }
 
 func (s *Server) sendError(conn *websocket.Conn, message string) {

@@ -147,36 +147,31 @@
         });
     }, { passive: false });
 
-    window.addEventListener('keydown', (e) => {
-        // Only block browser shortcuts if we want to handle them in the virtual browser
-        // For example, let's allow Ctrl+A, Ctrl+C, Ctrl+V, etc.
-        const isModifier = e.ctrlKey || e.metaKey || e.altKey || e.shiftKey;
-        
-        // Prevent default for space to avoid page scrolling
-        if (e.key === ' ') e.preventDefault();
-
+    // Use Guacamole Keyboard for proper key handling
+    const keyboard = new Guacamole.Keyboard(document);
+    
+    keyboard.onkeydown = (keysym) => {
         send({
             type: 'input',
             input: {
                 type: 'keydown',
-                key: e.key,
-                ctrl: e.ctrlKey,
-                alt: e.altKey,
-                shift: e.shiftKey,
-                meta: e.metaKey
+                keysym: keysym
             }
         });
-    });
-
-    window.addEventListener('keyup', (e) => {
+        return false; // Prevent browser default
+    };
+    
+    keyboard.onkeyup = (keysym) => {
         send({
             type: 'input',
             input: {
                 type: 'keyup',
-                key: e.key
+                keysym: keysym
             }
         });
-    });
+    };
+
+    keyboard.listenTo(document);
 
     btnApply.addEventListener('click', () => {
         let width = 1280;
@@ -207,10 +202,10 @@
         btnApply.textContent = 'RESTARTING...';
         btnApply.disabled = true;
         
+        // Auto-refresh after server restarts
         setTimeout(() => {
-            btnApply.textContent = 'APPLY CHANGES';
-            btnApply.disabled = false;
-        }, 5000);
+            window.location.reload();
+        }, 3000);
     });
 
     let ws = null;
@@ -306,12 +301,22 @@
     async function initWebRTC() {
         try {
             pc = new RTCPeerConnection({
-                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+                bundlePolicy: 'max-bundle',
+                rtcpMuxPolicy: 'require'
             });
 
             pc.ontrack = (event) => {
                 if (event.track.kind === 'video') {
-                    video.srcObject = event.streams[0];
+                    const stream = event.streams[0];
+                    video.srcObject = stream;
+                    
+                    // Set low-latency playback hints
+                    const videoTrack = stream.getVideoTracks()[0];
+                    if (videoTrack && 'contentHint' in videoTrack) {
+                        videoTrack.contentHint = 'motion';
+                    }
+                    
                     updateStatus('Connected', 'connected');
                     startPlayback();
                 }

@@ -194,6 +194,11 @@ func (m *Manager) buildChromiumArgs() []string {
 		"--audio-buffer-size=4096",
 		"--disable-features=AudioServiceSandbox",
 		"--force-device-scale-factor=1",
+		// Performance optimizations for low-latency streaming
+		"--disable-background-timer-throttling",
+		"--disable-renderer-backgrounding",
+		"--disable-backgrounding-occluded-windows",
+		"--force-color-profile=srgb",
 	}
 
 	if runtime.GOOS == "linux" && m.cfg.Display.VirtualDisplay {

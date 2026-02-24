@@ -13,6 +13,7 @@ import (
 	"github.com/zulfikawr/vbrowser/internal/browser"
 	"github.com/zulfikawr/vbrowser/internal/config"
 	"github.com/zulfikawr/vbrowser/internal/stream"
+	"github.com/zulfikawr/vbrowser/pkg/xorg"
 )
 
 //go:embed ui
@@ -25,17 +26,22 @@ type Server struct {
 	server         *http.Server
 	mgr            *browser.Manager
 	currentSession *stream.Session
+	inputBatcher   *InputBatcher
 	mu             sync.Mutex
 	wsWriteMu      sync.Mutex
 }
 
 // New creates a new HTTP server.
 func New(cfg *config.Config, mgr *browser.Manager, configPath string) *Server {
-	return &Server{
+	s := &Server{
 		cfg:        cfg,
 		configPath: configPath,
 		mgr:        mgr,
 	}
+	s.inputBatcher = NewInputBatcher(func(x, y int) {
+		xorg.Move(x, y)
+	})
+	return s
 }
 
 // Start starts the HTTP server.
@@ -45,6 +51,7 @@ func (s *Server) Start() error {
 	// Serve embedded UI
 	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/client.js", s.handleClientJS)
+	mux.HandleFunc("/guacamole-keyboard.js", s.handleGuacamoleJS)
 	mux.HandleFunc("/health", s.handleHealth)
 
 	// WebSocket signaling endpoint
@@ -105,6 +112,21 @@ func (s *Server) handleClientJS(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Error().Err(err).Msg("failed to read client.js")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0")
+	if _, err := w.Write(data); err != nil {
+		log.Error().Err(err).Msg("failed to write response")
+	}
+}
+
+func (s *Server) handleGuacamoleJS(w http.ResponseWriter, r *http.Request) {
+	data, err := uiFiles.ReadFile("ui/guacamole-keyboard.js")
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		log.Error().Err(err).Msg("failed to read guacamole-keyboard.js")
 		return
 	}
 

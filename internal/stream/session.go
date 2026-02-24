@@ -24,14 +24,19 @@ type Session struct {
 
 // NewSession creates a new streaming session.
 func NewSession(cfg *config.Config) (*Session, error) {
-	// Create PeerConnection
+	// Create PeerConnection with low-latency settings
+	settingEngine := webrtc.SettingEngine{}
+	settingEngine.SetSRTPReplayProtectionWindow(512)
+
+	api := webrtc.NewAPI(webrtc.WithSettingEngine(settingEngine))
+
 	webrtcCfg := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{URLs: []string{"stun:stun.l.google.com:19302"}},
 		},
 	}
 
-	pc, err := webrtc.NewPeerConnection(webrtcCfg)
+	pc, err := api.NewPeerConnection(webrtcCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -72,15 +77,16 @@ func (s *Session) Start(ctx context.Context) error {
 		return err
 	}
 
-	// 3. Start GStreamer Video Pipeline (Neko-style)
+	// 3. Start GStreamer Video Pipeline (Neko-style with optimizations)
 	videoPipelineStr := fmt.Sprintf(
 		"ximagesrc display-name=:%d show-pointer=true use-damage=false ! "+
-			"video/x-raw,framerate=%d/1 ! videoconvert ! queue ! "+
-			"vp8enc target-bitrate=%d cpu-used=4 end-usage=cbr threads=4 deadline=1 undershoot=95 ! "+
-			"appsink name=appsink emit-signals=true sync=false drop=true max-buffers=1",
+			"video/x-raw,framerate=%d/1 ! videoconvert ! queue max-size-buffers=2 ! "+
+			"vp8enc target-bitrate=%d cpu-used=6 end-usage=cbr threads=4 deadline=1 lag-in-frames=0 error-resilient=1 keyframe-max-dist=%d ! "+
+			"appsink name=appsink emit-signals=true sync=false drop=false max-buffers=2",
 		s.cfg.Display.DisplayNum,
 		s.cfg.Stream.TargetFPS,
 		s.cfg.Stream.MaxBitrateKbps*650, // Neko bitrate mapping
+		s.cfg.Stream.TargetFPS,          // 1 keyframe per second
 	)
 
 	videoPipeline, err := gst.CreatePipeline(videoPipelineStr)
