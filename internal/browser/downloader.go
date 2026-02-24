@@ -26,6 +26,9 @@ func DetectPlatform() (string, error) {
 		if runtime.GOARCH == "amd64" {
 			return "Linux_x64", nil
 		}
+		if runtime.GOARCH == "arm64" {
+			return "Linux_x64", nil
+		}
 	case "darwin":
 		if runtime.GOARCH == "arm64" {
 			return "Mac_Arm", nil

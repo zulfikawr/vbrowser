@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"image"
 	"os"
-	"syscall"
+
+	"golang.org/x/sys/unix"
 	"time"
 
 	"github.com/kbinani/screenshot"
@@ -63,11 +64,11 @@ func (c *XvfbCapturer) Capture() (*image.RGBA, error) {
 	// Suppress XGB warnings by redirecting stderr to /dev/null at fd level
 	devNull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 	if devNull != nil {
-		oldStderr, _ := syscall.Dup(2)
-		_ = syscall.Dup2(int(devNull.Fd()), 2)
+		oldStderr, _ := unix.Dup(2)
+		_ = unix.Dup2(int(devNull.Fd()), 2)
 		defer func() {
-			_ = syscall.Dup2(oldStderr, 2)
-			_ = syscall.Close(oldStderr)
+			_ = unix.Dup2(oldStderr, 2)
+			_ = unix.Close(oldStderr)
 			_ = devNull.Close()
 		}()
 	}
