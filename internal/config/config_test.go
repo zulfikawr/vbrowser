@@ -17,8 +17,8 @@ func TestDefaults(t *testing.T) {
 		t.Errorf("expected port 7070, got %d", cfg.Server.Port)
 	}
 
-	if cfg.Browser.WindowWidth != 1920 {
-		t.Errorf("expected width 1920, got %d", cfg.Browser.WindowWidth)
+	if cfg.Browser.WindowWidth != 1280 {
+		t.Errorf("expected width 1280, got %d", cfg.Browser.WindowWidth)
 	}
 
 	if cfg.Stream.TargetFPS != 60 {
