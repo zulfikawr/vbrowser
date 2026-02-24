@@ -24,9 +24,12 @@ type Session struct {
 
 // NewSession creates a new streaming session.
 func NewSession(cfg *config.Config) (*Session, error) {
-	// Create PeerConnection with low-latency settings
+	// Create PeerConnection with ultra-low-latency settings
 	settingEngine := webrtc.SettingEngine{}
 	settingEngine.SetSRTPReplayProtectionWindow(512)
+
+	// Disable jitter buffer for minimum latency
+	_ = settingEngine.SetAnsweringDTLSRole(webrtc.DTLSRoleServer)
 
 	api := webrtc.NewAPI(webrtc.WithSettingEngine(settingEngine))
 

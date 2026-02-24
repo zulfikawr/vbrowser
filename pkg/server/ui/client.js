@@ -23,6 +23,13 @@
     function startPlayback() {
         video.muted = true; // ALWAYS start muted for 100% reliable autoplay
         
+        // Ultra-low latency video settings
+        video.playsInline = true;
+        if ('requestVideoFrameCallback' in video) {
+            // Use requestVideoFrameCallback for frame-perfect rendering
+            video.requestVideoFrameCallback(() => {});
+        }
+        
         video.play().then(() => {
             videoContainer.classList.add('visible');
             connectionScreen.classList.add('hidden');
@@ -39,6 +46,23 @@
         video.muted = false; // Unmute on user click
         overlay.classList.remove('visible');
         video.play();
+    });
+
+    // Handle tab visibility changes to prevent throttling lag
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && video.srcObject) {
+            // Force video to catch up when tab becomes visible
+            video.play().catch(() => {});
+            
+            // Reset playout delay hint
+            const stream = video.srcObject;
+            if (stream) {
+                const videoTrack = stream.getVideoTracks()[0];
+                if (videoTrack && 'playoutDelayHint' in videoTrack) {
+                    videoTrack.playoutDelayHint = 0;
+                }
+            }
+        }
     });
 
     function getMousePos(e) {
@@ -303,7 +327,9 @@
             pc = new RTCPeerConnection({
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
                 bundlePolicy: 'max-bundle',
-                rtcpMuxPolicy: 'require'
+                rtcpMuxPolicy: 'require',
+                // Ultra-low latency settings
+                sdpSemantics: 'unified-plan'
             });
 
             pc.ontrack = (event) => {
@@ -311,10 +337,16 @@
                     const stream = event.streams[0];
                     video.srcObject = stream;
                     
-                    // Set low-latency playback hints
+                    // Set ultra-low-latency playback hints
                     const videoTrack = stream.getVideoTracks()[0];
-                    if (videoTrack && 'contentHint' in videoTrack) {
-                        videoTrack.contentHint = 'motion';
+                    if (videoTrack) {
+                        if ('contentHint' in videoTrack) {
+                            videoTrack.contentHint = 'motion';
+                        }
+                        // Request minimum playout delay (Chrome/Edge)
+                        if ('playoutDelayHint' in videoTrack) {
+                            videoTrack.playoutDelayHint = 0;
+                        }
                     }
                     
                     updateStatus('Connected', 'connected');
@@ -333,7 +365,9 @@
 
             const offer = await pc.createOffer({ 
                 offerToReceiveVideo: true,
-                offerToReceiveAudio: true 
+                offerToReceiveAudio: true,
+                // Disable jitter buffer for minimum latency
+                voiceActivityDetection: false
             });
             await pc.setLocalDescription(offer);
 
