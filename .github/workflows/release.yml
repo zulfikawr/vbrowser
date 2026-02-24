@@ -35,6 +35,7 @@ jobs:
             gstreamer1.0-plugins-bad \
             gstreamer1.0-plugins-ugly \
             libx11-dev \
+            libxrandr-dev \
             xvfb \
             xdotool \
             pulseaudio
