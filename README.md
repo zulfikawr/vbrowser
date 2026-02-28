@@ -24,7 +24,9 @@ A single Go binary that launches a Chromium instance on a remote server and stre
 ```bash
 # Install dependencies (Ubuntu/Debian)
 sudo apt-get update
-sudo apt-get install -y xvfb xdotool pulseaudio libgstreamer1.0-dev \
+sudo apt-get install -y xvfb xdotool pulseaudio \
+    libx11-dev libxrandr-dev libxtst-dev libxfixes-dev libxcvt-dev \
+    libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
     gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
     gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
     gstreamer1.0-pulseaudio
@@ -54,7 +56,8 @@ ssh -L 7070:localhost:7070 user@remote-server
 
 ### Server (Linux)
 - Go 1.21+ (for building)
-- GStreamer 1.0+: `libgstreamer1.0-dev` and plugins (base, good, bad, ugly)
+- GStreamer 1.0+: `libgstreamer1.0-dev`, `libgstreamer-plugins-base1.0-dev` and plugins (base, good, bad, ugly)
+- X11: `libx11-dev`, `libxrandr-dev`, `libxtst-dev`, `libxfixes-dev`, `libxcvt-dev`
 - PulseAudio: `pulseaudio` and `gstreamer1.0-pulseaudio`
 - Xvfb & xdotool: `sudo apt-get install xvfb xdotool`
 - ~500MB disk space for Chromium
