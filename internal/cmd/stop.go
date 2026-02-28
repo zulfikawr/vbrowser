@@ -41,9 +41,11 @@ var stopCmd = &cobra.Command{
 			_ = process.Remove(cfg.PIDFile)
 		}
 
-		// 2. Force kill any orphaned Chromium or Xvfb processes
-		log.Info().Msg("cleaning up orphaned chromium and xvfb processes...")
+		// 2. Force kill any orphaned browser or Xvfb processes
+		log.Info().Msg("cleaning up orphaned browser and xvfb processes...")
 		_ = exec.Command("pkill", "-f", "chrome").Run()
+		_ = exec.Command("pkill", "-f", "chromium").Run()
+		_ = exec.Command("pkill", "-f", "firefox").Run()
 		_ = exec.Command("pkill", "-f", "Xvfb").Run()
 
 		// 3. Clean up stale X11 lock files

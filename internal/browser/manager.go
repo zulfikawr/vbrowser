@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -52,6 +54,21 @@ func (m *Manager) initPulseAudio() string {
 	return sinkName
 }
 
+// getEffectiveProfileDir returns a browser-specific subdirectory to avoid profile corruption
+func (m *Manager) getEffectiveProfileDir() string {
+	baseDir := m.cfg.Browser.ProfileDir
+	if m.isFirefox() {
+		// Firefox Snap on Ubuntu cannot access hidden directories like .local
+		// We'll use a more standard path for the firefox profile if it's linux
+		if runtime.GOOS == "linux" {
+			home, _ := os.UserHomeDir()
+			return filepath.Join(home, "vbrowser_firefox_profile")
+		}
+		return filepath.Join(baseDir, "firefox")
+	}
+	return filepath.Join(baseDir, "chrome")
+}
+
 // Start launches Xvfb (on Linux) and browser.
 func (m *Manager) Start(browserPath string) error {
 	m.browserPath = browserPath
@@ -89,18 +106,29 @@ func (m *Manager) Start(browserPath string) error {
 		}
 	}
 
+	if m.isFirefox() {
+		if err := m.initFirefoxProfile(); err != nil {
+			log.Warn().Err(err).Msg("failed to initialize firefox profile")
+		}
+	}
+
 	args := m.buildBrowserArgs()
 
-	// Nuclear option: use a dedicated bash script to ensure environment is perfect
 	m.browserCmd = exec.Command(browserPath, args...)
 	m.browserCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
+	// Set environment variables
+	env := os.Environ()
 	if runtime.GOOS == "linux" && m.cfg.Display.VirtualDisplay {
-		m.browserCmd.Env = append(os.Environ(),
+		env = append(env,
 			fmt.Sprintf("DISPLAY=:%d", m.cfg.Display.DisplayNum),
 			fmt.Sprintf("PULSE_SINK=%s", sinkName),
 		)
 	}
+	if m.isFirefox() {
+		env = append(env, "MOZ_NO_REMOTE=1")
+	}
+	m.browserCmd.Env = env
 
 	if err := m.browserCmd.Start(); err != nil {
 		m.stopXvfb()
@@ -175,11 +203,66 @@ func (m *Manager) stopXvfb() {
 	}
 }
 
+func (m *Manager) isFirefox() bool {
+	lowerPath := strings.ToLower(m.browserPath)
+	return strings.Contains(lowerPath, "firefox")
+}
+
+func (m *Manager) initFirefoxProfile() error {
+	profileDir := m.getEffectiveProfileDir()
+	if err := os.MkdirAll(profileDir, 0755); err != nil {
+		return fmt.Errorf("create profile dir: %w", err)
+	}
+
+	// Remove stale lock files that cause "Firefox is already running" errors
+	os.Remove(filepath.Join(profileDir, "lock"))
+	os.Remove(filepath.Join(profileDir, ".parentlock"))
+	os.Remove(filepath.Join(profileDir, "parent.lock"))
+
+	prefsPath := filepath.Join(profileDir, "prefs.js")
+	prefs := []string{
+		"user_pref(\"browser.shell.checkDefaultBrowser\", false);",
+		"user_pref(\"browser.startup.homepage_welcome_url\", \"\");",
+		"user_pref(\"browser.startup.homepage_welcome_url.additional\", \"\");",
+		"user_pref(\"devtools.chrome.enabled\", true);",
+		"user_pref(\"devtools.debugger.prompt-connection\", false);",
+		"user_pref(\"devtools.debugger.remote-enabled\", true);",
+		"user_pref(\"toolkit.telemetry.reportingpolicy.firstRunCheck\", false);",
+		"user_pref(\"trailhead.firstrun.branches\", \"none\");",
+		"user_pref(\"datareporting.policy.dataSubmissionEnabled\", false);",
+		fmt.Sprintf("user_pref(\"width\", %d);", m.cfg.Browser.WindowWidth),
+		fmt.Sprintf("user_pref(\"height\", %d);", m.cfg.Browser.WindowHeight),
+	}
+
+	return os.WriteFile(prefsPath, []byte(strings.Join(prefs, "\n")), 0644)
+}
+
 func (m *Manager) buildBrowserArgs() []string {
+	if m.isFirefox() {
+		return m.buildFirefoxArgs()
+	}
+	return m.buildChromiumArgs()
+}
+
+func (m *Manager) buildFirefoxArgs() []string {
+	args := []string{
+		"--remote-debugging-port=9222",
+		"--profile", m.getEffectiveProfileDir(),
+		"--no-remote",
+		"--new-instance",
+		"-width", fmt.Sprintf("%d", m.cfg.Browser.WindowWidth),
+		"-height", fmt.Sprintf("%d", m.cfg.Browser.WindowHeight),
+	}
+
+	args = append(args, m.cfg.Browser.ExtraArgs...)
+	return args
+}
+
+func (m *Manager) buildChromiumArgs() []string {
 	args := []string{
 		"--remote-debugging-port=9222",
 		"--remote-debugging-address=127.0.0.1",
-		fmt.Sprintf("--user-data-dir=%s", m.cfg.Browser.ProfileDir),
+		fmt.Sprintf("--user-data-dir=%s", m.getEffectiveProfileDir()),
 		fmt.Sprintf("--window-size=%d,%d", m.cfg.Browser.WindowWidth, m.cfg.Browser.WindowHeight),
 		fmt.Sprintf("--window-position=%d,%d", 0, 0),
 		"--no-first-run",
@@ -199,7 +282,6 @@ func (m *Manager) buildBrowserArgs() []string {
 		"--audio-buffer-size=4096",
 		"--disable-features=AudioServiceSandbox",
 		"--force-device-scale-factor=1",
-		// Performance optimizations for low-latency streaming
 		"--disable-background-timer-throttling",
 		"--disable-renderer-backgrounding",
 		"--disable-backgrounding-occluded-windows",

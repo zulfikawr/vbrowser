@@ -9,8 +9,8 @@ import (
 )
 
 var useCmd = &cobra.Command{
-	Use:   "use [chrome|chromium]",
-	Short: "Switch between Chrome and Chromium",
+	Use:   "use [chrome|chromium|firefox]",
+	Short: "Switch between Chrome, Chromium, and Firefox",
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 {
 			return fmt.Errorf("accepts 1 arg(s), received %d\n", len(args))
@@ -19,8 +19,8 @@ var useCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		browserType := args[0]
-		if browserType != "chrome" && browserType != "chromium" {
-			return fmt.Errorf("invalid browser type: %s (must be 'chrome' or 'chromium')\n", browserType)
+		if browserType != "chrome" && browserType != "chromium" && browserType != "firefox" {
+			return fmt.Errorf("invalid browser type: %s (must be 'chrome', 'chromium', or 'firefox')\n", browserType)
 		}
 
 		path, err := browser.FindSystemBrowser(browserType)

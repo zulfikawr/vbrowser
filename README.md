@@ -1,14 +1,14 @@
 # vbrowser
 
-> Self-hosted virtual browser that streams Chrome or Chromium via WebRTC
+> Self-hosted virtual browser that streams Chrome, Chromium, or Firefox via WebRTC
 
-A single Go binary that launches a browser instance (Chrome or Chromium) on a remote server and streams it to your local browser via WebRTC, accessible over SSH tunnel.
+A single Go binary that launches a browser instance (Chrome, Chromium, or Firefox) on a remote server and streams it to your local browser via WebRTC, accessible over SSH tunnel.
 
 ## Features
 
 - 🚀 Single static binary - high-performance Go + GStreamer
 - ⚡ Buttery smooth 60 FPS - ultra-low latency streaming
-- 🌐 Uses system-installed Chromium/Chrome
+- 🌐 Uses system-installed Chrome, Chromium, or Firefox
 - 🎥 Native GStreamer VP8 encoding (Mimicking Neko architecture)
 - 🔊 Full audio support via PulseAudio + Opus codec
 - 🔒 Secure over SSH tunnel (no cloud dependency)
@@ -41,6 +41,9 @@ sudo apt-get install -y chromium-browser
 wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 sudo apt install ./google-chrome-stable_current_amd64.deb
 
+# Option C: Firefox
+sudo apt-get install -y firefox
+
 # 3. Clone and Build vbrowser
 git clone https://github.com/zulfikawr/vbrowser.git
 cd vbrowser
@@ -64,7 +67,7 @@ ssh -L 7070:localhost:7070 user@remote-server
 
 ### Server (Linux)
 - Go 1.21+ (for building)
-- Chromium or Google Chrome installed
+- Chrome, Chromium, or Firefox installed
 - GStreamer 1.0+: `libgstreamer1.0-dev`, `libgstreamer-plugins-base1.0-dev` and plugins (base, good, bad, ugly)
 - X11: `libx11-dev`, `libxrandr-dev`, `libxtst-dev`, `libxfixes-dev`, `libxcvt-dev`
 - PulseAudio: `pulseaudio` and `gstreamer1.0-pulseaudio`
@@ -87,7 +90,7 @@ Default config location: `~/.config/vbrowser/config.json`
     "port": 7070
   },
   "browser": {
-    "browser_path": "/usr/bin/chromium-browser",
+    "browser_path": "/usr/bin/firefox",
     "window_width": 1920,
     "window_height": 1080
   },
@@ -114,10 +117,11 @@ Flags:
 ```
 
 ### use
-Switch between Chrome and Chromium:
+Switch between Chrome, Chromium, and Firefox:
 ```bash
 vbrowser use chrome
 vbrowser use chromium
+vbrowser use firefox
 ```
 This will find the browser on your system and save its path to the configuration file.
 
@@ -138,7 +142,7 @@ Output:
 ● vbrowser is running
   PID:        12345
   URL:        http://127.0.0.1:7070
-  Browser:    /usr/bin/chromium-browser
+  Browser:    /usr/bin/firefox
   Display:    :99 (1920x1080)
 ```
 
@@ -176,7 +180,7 @@ GOOS=linux GOARCH=amd64 go build -o dist/vbrowser-linux-amd64 ./cmd/vbrowser
 vbrowser/
 ├── cmd/vbrowser/          # Main entry point
 ├── internal/
-│   ├── browser/           # Chromium management
+│   ├── browser/           # Browser management (Chrome/Firefox)
 │   ├── capture/           # Legacy capture (keeping for reference)
 │   ├── cmd/               # CLI commands
 │   ├── config/            # Configuration
@@ -210,7 +214,7 @@ Check logs:
 
 ### No video stream
 1. Check WebSocket connection in browser console
-2. Verify browser is running: `ps aux | grep chrome` or `ps aux | grep chromium`
+2. Verify browser is running: `ps aux | grep chrome`, `ps aux | grep chromium`, or `ps aux | grep firefox`
 3. Check Xvfb is running: `ps aux | grep Xvfb`
 4. Check GStreamer pipeline is active in logs.
 

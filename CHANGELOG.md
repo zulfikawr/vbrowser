@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-02-28
+
+### Added
+- **Firefox Support**: Full support for running Firefox as the virtual browser engine.
+- **Silent & Robust Start**: Automatic profile initialization to bypass "Welcome" screens and automatic clearing of stale lock files.
+- **Firefox CDP Integration**: Full compatibility with Remote Debugging for Firefox.
+- **Snap Compatibility**: Support for Ubuntu's Firefox Snap via a dedicated non-hidden profile path (`~/vbrowser_firefox_profile`).
+- **Improved Browser Discovery**: Added system detection for Firefox across Linux, macOS, and Windows.
+
+### Changed
+- **Driver Abstraction**: Refactored browser management to handle engine-specific CLI flags (Gecko vs Blink) and ensure proper window sizing across all browsers.
+- **Profile Isolation**: Separated Firefox and Chromium profiles into dedicated subdirectories to ensure stability and prevent engine conflicts.
+
 ## [0.3.0] - 2026-02-28
 
 ### Added
@@ -27,18 +40,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Multi-Browser Support**: Now supports both Google Chrome and Chromium.
 - **Auto-Discovery**: Automatic detection of system-installed browsers (Chrome/Chromium/Chrome-Stable).
-- **`vbrowser use` Command**: New CLI command to easily switch between browsers (`vbrowser use chrome` or `vbrowser use chromium`).
+- **`vbrowser use` Command**: New CLI command to easily switch between browsers (`vbrowser use chrome`, `chromium`, or `firefox`).
 - **Architecture-Aware Instructions**: Installation help now correctly identifies and advises on browser availability for ARM64 vs x86_64 Linux.
 - **Environment Variable**: Added `VBROWSER_BROWSER_PATH` for manual binary path override.
 
 ### Changed
-- **System-First Approach**: Shifted from downloading Chromium snapshots to using system-installed versions (lighter, more stable, and easier to update).
-- **Refactored Naming**: Renamed all "Chromium" specific configurations and internal logic to "Browser" for better generic support.
-- **CLI Output**: Refined all CLI commands to remove extra trailing newlines for a cleaner terminal experience.
+- **System-First Approach**: Shifted from downloading Chromium snapshots to using system-installed versions.
+- **Refactored Naming**: Renamed all "Chromium" specific configurations and internal logic to "Browser".
+- **CLI Output**: Refined all CLI commands to remove extra trailing newlines.
 - **Improved Error Messages**: Standardized CLI error reporting with architecture-specific installation steps.
 
 ### Removed
-- **Auto-Download Logic**: Removed the progress bar and snapshot downloading logic (reduced binary size and complexity).
+- **Auto-Download Logic**: Removed the snapshot downloading logic (reduced binary size and complexity).
 - **Configuration Fields**: Removed `auto_download` and `download_dir` from `config.json`.
 - **CLI Flags**: Removed `--no-download` flag from the `start` command.
 
@@ -64,19 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PulseAudio integration for audio capture
 - Xvfb virtual display support
 
-### Performance
-- Ultra-low latency WebRTC configuration (playoutDelayHint=0)
-- Input batching for optimized mouse movement handling
-- Tab visibility handling to prevent throttling lag
-- 60 FPS streaming with configurable bitrate (default 8 Mbps)
-- Optimized VP8 encoding settings for real-time performance
-
-### Fixed
-- XTEST BadValue errors when typing special characters
-- Keyboard input lag and missing characters
-- High latency when switching browser tabs
-- WebRTC jitter buffer causing video delay
-
+[0.4.0]: https://github.com/zulfikawr/vbrowser/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/zulfikawr/vbrowser/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/zulfikawr/vbrowser/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/zulfikawr/vbrowser/releases/tag/v0.1.0
