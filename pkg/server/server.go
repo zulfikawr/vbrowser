@@ -61,9 +61,9 @@ func (s *Server) Start() error {
 	s.server = &http.Server{
 		Addr:         addr,
 		Handler:      s.logMiddleware(mux),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  1 * time.Hour,
+		WriteTimeout: 1 * time.Hour,
+		IdleTimeout:  1 * time.Hour,
 	}
 
 	log.Info().Str("addr", addr).Msg("HTTP server starting")

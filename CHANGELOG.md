@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-28
+
+### Added
+- **New Settings UI**: Replaced the top-hover menu with a sleek, non-intrusive side-panel drawer.
+- **Ghost-State Trigger**: Added a semi-transparent gear icon in the bottom-right corner that pulses on load to guide the user.
+- **Connection Heartbeat**: Implemented a 5-second WebSocket ping/pong mechanism to prevent random disconnects.
+- **Auto-Reconnect on Focus**: Stream now automatically disconnects when the tab is backgrounded and reconnects on focus, preventing lag buildup from browser throttling.
+
+### Changed
+- **Increased Timeouts**: Updated server-side Read/Write timeouts to 1 hour to support long-running sessions.
+- **Minimal Interface**: Cleaned up the overlay UI to provide a more immersive, distraction-free browser stream.
+
+### Fixed
+- **Top Tab Interference**: Fixed the issue where the settings menu would block access to the browser's top tabs.
+- **Tab Switching Lag**: Eliminated the high latency and "catch-up" lag that occurred when returning to a backgrounded vbrowser tab.
+- **Random Disconnects**: Resolved periodic connection drops caused by intermediate proxy or router inactivity timeouts.
+
 ## [0.2.0] - 2026-02-28
 
 ### Added
@@ -60,5 +77,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - High latency when switching browser tabs
 - WebRTC jitter buffer causing video delay
 
+[0.3.0]: https://github.com/zulfikawr/vbrowser/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/zulfikawr/vbrowser/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/zulfikawr/vbrowser/releases/tag/v0.1.0

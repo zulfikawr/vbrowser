@@ -143,6 +143,11 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSignalingMessage(session *stream.Session, conn *websocket.Conn, msg *SignalingMessage) error {
 	switch msg.Type {
+	case "ping":
+		s.wsWriteMu.Lock()
+		_ = conn.WriteJSON(SignalingMessage{Type: "pong"})
+		s.wsWriteMu.Unlock()
+		return nil
 	case "offer":
 		if msg.SDP == nil {
 			return fmt.Errorf("offer missing SDP")
