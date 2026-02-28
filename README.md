@@ -15,7 +15,7 @@ A single Go binary that launches a browser instance (Chrome or Chromium) on a re
 - 🖱️ Full interaction support (Mouse, Keyboard, Scroll, Shortcuts)
 - 💾 Persistent browser profile (cookies, bookmarks, passwords)
 - ⚙️ Hot-reloadable resolution, FPS, and bitrate
-- 🔧 Simple CLI (start, stop, status)
+- 🔧 Simple CLI (use, start, stop, status)
 
 ## Quick Start
 
