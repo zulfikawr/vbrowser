@@ -21,6 +21,18 @@ A single Go binary that launches a browser instance (Chrome, Chromium, or Firefo
 
 ### Installation
 
+#### Recommended (One-line Installer)
+
+Run the following command to install system dependencies and build vbrowser automatically:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/zulfikawr/vbrowser/main/scripts/install.sh | sudo bash
+```
+
+#### Manual Installation
+
+If you prefer to install dependencies manually:
+
 ```bash
 # 1. Install system dependencies (Ubuntu/Debian)
 sudo apt-get update
