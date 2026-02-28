@@ -19,12 +19,12 @@ func TestNewManager(t *testing.T) {
 	}
 }
 
-func TestBuildChromiumArgs(t *testing.T) {
+func TestBuildBrowserArgs(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Browser.ExtraArgs = []string{"--test-flag"}
 	mgr := NewManager(cfg)
 
-	args := mgr.buildChromiumArgs()
+	args := mgr.buildBrowserArgs()
 
 	if len(args) == 0 {
 		t.Fatal("no args generated")

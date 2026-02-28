@@ -1,14 +1,14 @@
 # vbrowser
 
-> Self-hosted virtual browser that streams Chromium via WebRTC
+> Self-hosted virtual browser that streams Chrome or Chromium via WebRTC
 
-A single Go binary that launches a Chromium instance on a remote server and streams it to your local browser via WebRTC, accessible over SSH tunnel.
+A single Go binary that launches a browser instance (Chrome or Chromium) on a remote server and streams it to your local browser via WebRTC, accessible over SSH tunnel.
 
 ## Features
 
 - 🚀 Single static binary - high-performance Go + GStreamer
 - ⚡ Buttery smooth 60 FPS - ultra-low latency streaming
-- 🔄 Auto-downloads correct Chromium build for your OS
+- 🌐 Uses system-installed Chromium/Chrome
 - 🎥 Native GStreamer VP8 encoding (Mimicking Neko architecture)
 - 🔊 Full audio support via PulseAudio + Opus codec
 - 🔒 Secure over SSH tunnel (no cloud dependency)
@@ -22,7 +22,7 @@ A single Go binary that launches a Chromium instance on a remote server and stre
 ### Installation
 
 ```bash
-# Install dependencies (Ubuntu/Debian)
+# 1. Install system dependencies (Ubuntu/Debian)
 sudo apt-get update
 sudo apt-get install -y xvfb xdotool pulseaudio \
     libx11-dev libxrandr-dev libxtst-dev libxfixes-dev libxcvt-dev \
@@ -31,11 +31,19 @@ sudo apt-get install -y xvfb xdotool pulseaudio \
     gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
     gstreamer1.0-pulseaudio
 
-# Clone the repository
+# 2. Install a browser (Choose one)
+# Note: Google Chrome is not available for ARM64 Linux. Use Chromium instead.
+
+# Option A: Chromium (Recommended for ARM64)
+sudo apt-get install -y chromium-browser
+
+# Option B: Google Chrome (x86_64 only)
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+sudo apt install ./google-chrome-stable_current_amd64.deb
+
+# 3. Clone and Build vbrowser
 git clone https://github.com/zulfikawr/vbrowser.git
 cd vbrowser
-
-# Build
 make build
 ```
 
@@ -56,11 +64,12 @@ ssh -L 7070:localhost:7070 user@remote-server
 
 ### Server (Linux)
 - Go 1.21+ (for building)
+- Chromium or Google Chrome installed
 - GStreamer 1.0+: `libgstreamer1.0-dev`, `libgstreamer-plugins-base1.0-dev` and plugins (base, good, bad, ugly)
 - X11: `libx11-dev`, `libxrandr-dev`, `libxtst-dev`, `libxfixes-dev`, `libxcvt-dev`
 - PulseAudio: `pulseaudio` and `gstreamer1.0-pulseaudio`
 - Xvfb & xdotool: `sudo apt-get install xvfb xdotool`
-- ~500MB disk space for Chromium
+- ~100MB disk space (binary and profile)
 - ~500MB RAM
 
 ### Client
@@ -78,7 +87,7 @@ Default config location: `~/.config/vbrowser/config.json`
     "port": 7070
   },
   "browser": {
-    "auto_download": true,
+    "browser_path": "/usr/bin/chromium-browser",
     "window_width": 1920,
     "window_height": 1080
   },
@@ -102,8 +111,15 @@ vbrowser start [flags]
 Flags:
   -f, --foreground     Run in foreground (don't daemonize)
       --port int       Override server port
-      --no-download    Skip Chromium auto-download
 ```
+
+### use
+Switch between Chrome and Chromium:
+```bash
+vbrowser use chrome
+vbrowser use chromium
+```
+This will find the browser on your system and save its path to the configuration file.
 
 ### stop
 Stop the running daemon:
@@ -122,7 +138,7 @@ Output:
 ● vbrowser is running
   PID:        12345
   URL:        http://127.0.0.1:7070
-  Chromium:   /home/user/.local/share/vbrowser/chromium/chrome
+  Browser:    /usr/bin/chromium-browser
   Display:    :99 (1920x1080)
 ```
 
@@ -160,7 +176,7 @@ GOOS=linux GOARCH=amd64 go build -o dist/vbrowser-linux-amd64 ./cmd/vbrowser
 vbrowser/
 ├── cmd/vbrowser/          # Main entry point
 ├── internal/
-│   ├── browser/           # Chromium management & download
+│   ├── browser/           # Chromium management
 │   ├── capture/           # Legacy capture (keeping for reference)
 │   ├── cmd/               # CLI commands
 │   ├── config/            # Configuration
@@ -186,7 +202,7 @@ Change port in config or use `--port` flag:
 ./vbrowser start --port 8080
 ```
 
-### Chromium won't start
+### Browser won't start
 Check logs:
 ```bash
 ./vbrowser start --foreground --log-level debug
@@ -194,7 +210,7 @@ Check logs:
 
 ### No video stream
 1. Check WebSocket connection in browser console
-2. Verify Chromium is running: `ps aux | grep chrome`
+2. Verify browser is running: `ps aux | grep chrome` or `ps aux | grep chromium`
 3. Check Xvfb is running: `ps aux | grep Xvfb`
 4. Check GStreamer pipeline is active in logs.
 

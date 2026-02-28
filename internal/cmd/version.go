@@ -10,9 +10,9 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version info",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("vbrowser v0.1.0")
+		fmt.Println("vbrowser v0.2.0")
 		fmt.Println("Built with Go and GStreamer")
-		fmt.Println("https://github.com/zulfikawr/vbrowser")
+		fmt.Print("https://github.com/zulfikawr/vbrowser\n")
 	},
 }
 

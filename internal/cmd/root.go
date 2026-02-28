@@ -21,7 +21,7 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "vbrowser",
 	Short: "Self-hosted virtual browser",
-	Long:  "A single Go binary that launches a Chromium instance and streams it via WebRTC",
+	Long:  "A single Go binary that launches a browser instance (Chrome or Chromium) and streams it via WebRTC",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		setupLogging()
 

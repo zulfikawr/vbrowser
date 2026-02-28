@@ -18,7 +18,6 @@ import (
 var (
 	foreground bool
 	port       int
-	noDownload bool
 )
 
 var startCmd = &cobra.Command{
@@ -40,24 +39,17 @@ var startCmd = &cobra.Command{
 			}
 		}
 
-		// Handle Chromium download
-		chromiumPath := cfg.Browser.ChromiumPath
-		if chromiumPath == "" && cfg.Browser.AutoDownload && !noDownload {
-			if err := ensureChromium(); err != nil {
-				return fmt.Errorf("ensure chromium: %w", err)
-			}
+		// Find Browser
+		browserPath := cfg.Browser.BrowserPath
+		if browserPath == "" {
 			var err error
-			chromiumPath, err = browser.GetChromiumPath(cfg.Browser.DownloadDir)
+			browserPath, err = browser.FindSystemBrowser("auto")
 			if err != nil {
-				return fmt.Errorf("get chromium path: %w", err)
+				return fmt.Errorf("no browser found\n\n%s\n\nAlternatively, specify the path in config or VBROWSER_BROWSER_PATH env var\n", browser.GetInstallInstructions())
 			}
 		}
 
-		if chromiumPath == "" {
-			return fmt.Errorf("chromium path not configured and auto-download disabled")
-		}
-
-		log.Info().Str("chromium", chromiumPath).Msg("using Chromium")
+		log.Info().Str("browser", browserPath).Msg("using browser")
 
 		// Log active configuration
 		log.Info().
@@ -76,7 +68,7 @@ var startCmd = &cobra.Command{
 
 		// Start browser manager
 		mgr := browser.NewManager(cfg)
-		if err := mgr.Start(chromiumPath); err != nil {
+		if err := mgr.Start(browserPath); err != nil {
 			if err := process.Remove(cfg.PIDFile); err != nil {
 				log.Warn().Err(err).Msg("failed to remove pid file")
 			}
@@ -125,35 +117,8 @@ var startCmd = &cobra.Command{
 	},
 }
 
-func ensureChromium() error {
-	platform, err := browser.DetectPlatform()
-	if err != nil {
-		return err
-	}
-
-	cachedRev := browser.GetCachedRevision(cfg.Browser.DownloadDir)
-	if cachedRev != "" {
-		log.Info().Str("revision", cachedRev).Msg("Chromium already downloaded")
-		return nil
-	}
-
-	log.Info().Msg("fetching latest Chromium revision")
-	revision, err := browser.FetchLatestRevision(platform)
-	if err != nil {
-		return err
-	}
-
-	log.Info().Str("revision", revision).Msg("downloading Chromium")
-	if err := browser.Download(platform, revision, cfg.Browser.DownloadDir); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func init() {
 	rootCmd.AddCommand(startCmd)
 	startCmd.Flags().BoolVarP(&foreground, "foreground", "f", false, "run in foreground")
 	startCmd.Flags().IntVar(&port, "port", 0, "override server port")
-	startCmd.Flags().BoolVar(&noDownload, "no-download", false, "skip Chromium auto-download")
 }

@@ -14,12 +14,13 @@ import (
 	"github.com/zulfikawr/vbrowser/pkg/xorg"
 )
 
-// Manager manages the lifecycle of Chromium and Xvfb processes.
+// Manager manages the lifecycle of browser and Xvfb processes.
 type Manager struct {
 	cfg         *config.Config
-	chromiumCmd *exec.Cmd
+	browserCmd  *exec.Cmd
 	xvfbCmd     *exec.Cmd
-	chromiumPid int
+	browserPid  int
+	browserPath string
 }
 
 // NewManager creates a new browser manager.
@@ -51,8 +52,9 @@ func (m *Manager) initPulseAudio() string {
 	return sinkName
 }
 
-// Start launches Xvfb (on Linux) and Chromium.
-func (m *Manager) Start(chromiumPath string) error {
+// Start launches Xvfb (on Linux) and browser.
+func (m *Manager) Start(browserPath string) error {
+	m.browserPath = browserPath
 	sinkName := m.initPulseAudio()
 
 	if runtime.GOOS == "linux" && m.cfg.Display.VirtualDisplay {
@@ -87,45 +89,45 @@ func (m *Manager) Start(chromiumPath string) error {
 		}
 	}
 
-	args := m.buildChromiumArgs()
+	args := m.buildBrowserArgs()
 
 	// Nuclear option: use a dedicated bash script to ensure environment is perfect
-	m.chromiumCmd = exec.Command(chromiumPath, args...)
-	m.chromiumCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	m.browserCmd = exec.Command(browserPath, args...)
+	m.browserCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if runtime.GOOS == "linux" && m.cfg.Display.VirtualDisplay {
-		m.chromiumCmd.Env = append(os.Environ(),
+		m.browserCmd.Env = append(os.Environ(),
 			fmt.Sprintf("DISPLAY=:%d", m.cfg.Display.DisplayNum),
 			fmt.Sprintf("PULSE_SINK=%s", sinkName),
 		)
 	}
 
-	if err := m.chromiumCmd.Start(); err != nil {
+	if err := m.browserCmd.Start(); err != nil {
 		m.stopXvfb()
-		return fmt.Errorf("start chromium: %w", err)
+		return fmt.Errorf("start browser: %w", err)
 	}
 
-	m.chromiumPid = m.chromiumCmd.Process.Pid
+	m.browserPid = m.browserCmd.Process.Pid
 
 	log.Info().
-		Int("pid", m.chromiumPid).
-		Str("path", chromiumPath).
-		Msg("Chromium started")
+		Int("pid", m.browserPid).
+		Str("path", browserPath).
+		Msg("browser started")
 
 	return nil
 }
 
-// Stop gracefully terminates Chromium and Xvfb.
+// Stop gracefully terminates browser and Xvfb.
 func (m *Manager) Stop() error {
-	if m.chromiumCmd != nil && m.chromiumCmd.Process != nil {
-		log.Info().Int("pid", m.chromiumPid).Msg("stopping Chromium")
-		pgid, err := syscall.Getpgid(m.chromiumCmd.Process.Pid)
+	if m.browserCmd != nil && m.browserCmd.Process != nil {
+		log.Info().Int("pid", m.browserPid).Msg("stopping browser")
+		pgid, err := syscall.Getpgid(m.browserCmd.Process.Pid)
 		if err == nil {
 			_ = syscall.Kill(-pgid, syscall.SIGTERM)
 		} else {
-			_ = m.chromiumCmd.Process.Signal(syscall.SIGTERM)
+			_ = m.browserCmd.Process.Signal(syscall.SIGTERM)
 		}
-		_ = m.chromiumCmd.Wait()
+		_ = m.browserCmd.Wait()
 	}
 
 	xorg.DisplayClose()
@@ -135,27 +137,30 @@ func (m *Manager) Stop() error {
 	return nil
 }
 
-// Pid returns the Chromium process PID.
+// Pid returns the browser process PID.
 func (m *Manager) Pid() int {
-	return m.chromiumPid
+	return m.browserPid
 }
 
-// IsRunning checks if Chromium is still running.
+// IsRunning checks if browser is still running.
 func (m *Manager) IsRunning() bool {
-	if m.chromiumCmd == nil || m.chromiumCmd.Process == nil {
+	if m.browserCmd == nil || m.browserCmd.Process == nil {
 		return false
 	}
-	err := m.chromiumCmd.Process.Signal(syscall.Signal(0))
+	err := m.browserCmd.Process.Signal(syscall.Signal(0))
 	return err == nil
 }
 
 // Restart stops and starts the browser with new settings.
-func (m *Manager) Restart(chromiumPath string) error {
+func (m *Manager) Restart(browserPath string) error {
 	log.Info().Msg("restarting browser manager for configuration change")
 	if err := m.Stop(); err != nil {
 		log.Warn().Err(err).Msg("failed to stop manager during restart")
 	}
-	return m.Start(chromiumPath)
+	if browserPath == "" {
+		browserPath = m.browserPath
+	}
+	return m.Start(browserPath)
 }
 
 func (m *Manager) stopXvfb() {
@@ -170,7 +175,7 @@ func (m *Manager) stopXvfb() {
 	}
 }
 
-func (m *Manager) buildChromiumArgs() []string {
+func (m *Manager) buildBrowserArgs() []string {
 	args := []string{
 		"--remote-debugging-port=9222",
 		"--remote-debugging-address=127.0.0.1",

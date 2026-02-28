@@ -8,9 +8,7 @@
     }
   },
   "browser": {
-    "chromium_path": "",
-    "auto_download": true,
-    "download_dir": "~/.local/share/vbrowser/chromium",
+    "browser_path": "",
     "profile_dir": "~/.local/share/vbrowser/profile",
     "window_width": 1920,
     "window_height": 1080,

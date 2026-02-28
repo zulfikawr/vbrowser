@@ -8,7 +8,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 	"github.com/rs/zerolog/log"
-	"github.com/zulfikawr/vbrowser/internal/browser"
 	"github.com/zulfikawr/vbrowser/internal/stream"
 	"github.com/zulfikawr/vbrowser/pkg/xorg"
 )
@@ -239,9 +238,8 @@ func (s *Server) handleConfigChange(cfg *ConfigMessage) {
 	}
 
 	// 4. Restart the browser manager with new resolution
-	chromiumPath, _ := browser.GetChromiumPath(s.cfg.Browser.DownloadDir)
 	go func() {
-		if err := s.mgr.Restart(chromiumPath); err != nil {
+		if err := s.mgr.Restart(""); err != nil {
 			log.Error().Err(err).Msg("failed to restart browser manager")
 		}
 		// Recreate input batcher after restart

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -62,11 +61,7 @@ var stopCmd = &cobra.Command{
 			os.Remove(unixSocket)
 		}
 
-		// 4. Ensure download directory lock is also cleared if it exists
-		downloadLock := filepath.Join(cfg.Browser.DownloadDir, "vbrowser.lock")
-		os.Remove(downloadLock)
-
-		// 5. Remove PID file unconditionally
+		// 4. Remove PID file unconditionally
 		_ = process.Remove(cfg.PIDFile)
 
 		log.Info().Msg("vbrowser cleanup complete")

@@ -33,11 +33,9 @@ type AuthConfig struct {
 	Token   string `json:"token"`
 }
 
-// BrowserConfig contains Chromium browser settings.
+// BrowserConfig contains browser settings.
 type BrowserConfig struct {
-	ChromiumPath string   `json:"chromium_path"`
-	AutoDownload bool     `json:"auto_download"`
-	DownloadDir  string   `json:"download_dir"`
+	BrowserPath  string   `json:"browser_path"`
 	ProfileDir   string   `json:"profile_dir"`
 	WindowWidth  int      `json:"window_width"`
 	WindowHeight int      `json:"window_height"`
@@ -84,9 +82,7 @@ func Defaults() *Config {
 			},
 		},
 		Browser: BrowserConfig{
-			ChromiumPath: "",
-			AutoDownload: true,
-			DownloadDir:  filepath.Join(homeDir, ".local/share/vbrowser/chromium"),
+			BrowserPath:  "",
 			ProfileDir:   filepath.Join(homeDir, ".local/share/vbrowser/profile"),
 			WindowWidth:  1280,
 			WindowHeight: 720,
@@ -139,7 +135,6 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 
-	cfg.Browser.DownloadDir = expandPath(cfg.Browser.DownloadDir)
 	cfg.Browser.ProfileDir = expandPath(cfg.Browser.ProfileDir)
 	cfg.PIDFile = expandPath(cfg.PIDFile)
 	if cfg.Logging.File != "" {
@@ -220,5 +215,8 @@ func (c *Config) ApplyEnv() {
 	}
 	if level := os.Getenv("VBROWSER_LOG_LEVEL"); level != "" {
 		c.Logging.Level = level
+	}
+	if path := os.Getenv("VBROWSER_BROWSER_PATH"); path != "" {
+		c.Browser.BrowserPath = path
 	}
 }
