@@ -152,14 +152,17 @@ vbrowser service install
 vbrowser service uninstall
 ```
 
-### use
-Switch between Chrome, Chromium, and Firefox:
+### list
+List all detected browser binaries:
 ```bash
-vbrowser use chrome
-vbrowser use chromium
-vbrowser use firefox
+vbrowser list
 ```
-This will find the browser on your system and save its path to the configuration file.
+
+### logs
+Show live vbrowser service logs:
+```bash
+vbrowser logs
+```
 
 ### update
 Check for updates on GitHub:

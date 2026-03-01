@@ -141,6 +141,49 @@ func FindSystemBrowser(browserType string) (string, error) {
 	return "", fmt.Errorf("%s binary not found", browserType)
 }
 
+// FindAllBrowsers returns a list of all detected browser binaries on the system.
+func FindAllBrowsers() []string {
+	found := make(map[string]bool)
+	var results []string
+
+	chromeNames := []string{"google-chrome", "google-chrome-stable", "google-chrome-unstable"}
+	chromiumNames := []string{"chromium", "chromium-browser"}
+	firefoxNames := []string{"firefox", "firefox-esr"}
+	allNames := append(chromiumNames, append(chromeNames, firefoxNames...)...)
+
+	allPaths := []string{
+		"/usr/bin/chromium",
+		"/usr/bin/chromium-browser",
+		"/usr/bin/google-chrome",
+		"/usr/bin/google-chrome-stable",
+		"/usr/bin/firefox",
+		"/snap/bin/chromium",
+		"/snap/bin/firefox",
+	}
+
+	// Try PATH
+	for _, name := range allNames {
+		if path, err := exec.LookPath(name); err == nil {
+			if !found[path] {
+				found[path] = true
+				results = append(results, path)
+			}
+		}
+	}
+
+	// Try common paths
+	for _, path := range allPaths {
+		if _, err := os.Stat(path); err == nil {
+			if !found[path] {
+				found[path] = true
+				results = append(results, path)
+			}
+		}
+	}
+
+	return results
+}
+
 // GetInstallInstructions returns platform-specific instructions for installing a browser.
 func GetInstallInstructions() string {
 	switch runtime.GOOS {

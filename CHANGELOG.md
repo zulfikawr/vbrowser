@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-03-02
+
+### Added
+- **Hardware Acceleration**: Added support for VA-API (Intel/AMD) and NVENC (Nvidia) hardware encoders.
+- **H.264 Codec Support**: New support for H.264 video codec with optimized `openh264enc` settings for ARM64 and low-power systems.
+- **Dynamic Encoding**: Added `stream.encoder` and `stream.video_codec` configuration options.
+- **CLI QoL Commands**: Added `vbrowser list` to show detected browsers and `vbrowser logs` for easy access to live service logs.
+
+### Changed
+- **Command Cleanup**: Removed redundant `vbrowser use` command in favor of `vbrowser config browser`.
+
+### Removed
+- **Redundant Logic**: Deleted unused legacy capture package and redundant FFmpeg-based encoder logic to streamline the codebase.
+
 ## [0.6.1] - 2026-03-02
 
 ### Fixed

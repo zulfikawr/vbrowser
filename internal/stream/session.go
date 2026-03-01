@@ -64,9 +64,14 @@ func NewSession(cfg *config.Config) (*Session, error) {
 // Start begins the GStreamer pipelines and WebRTC streaming.
 func (s *Session) Start(ctx context.Context) error {
 	// 1. Create WebRTC tracks
+	videoMime := webrtc.MimeTypeVP8
+	if s.cfg.Stream.VideoCodec == "h264" {
+		videoMime = webrtc.MimeTypeH264
+	}
+
 	videoTrack, err := webrtc.NewTrackLocalStaticSample(
 		webrtc.RTPCodecCapability{
-			MimeType: webrtc.MimeTypeVP8,
+			MimeType: videoMime,
 			RTCPFeedback: []webrtc.RTCPFeedback{
 				{Type: "nack", Parameter: "pli"},
 				{Type: "ccm", Parameter: "fir"},
@@ -96,26 +101,39 @@ func (s *Session) Start(ctx context.Context) error {
 		return err
 	}
 
-	// 3. Start GStreamer Video Pipeline (Neko-inspired optimizations)
-	// - undershoot=95: Allow some bitrate flexibility
-	// - min-quantizer/max-quantizer: Control image quality/bitrate trade-off
-	// - buffer-size settings: Manage encoding latency
+	// 3. Build Video Pipeline based on codec and encoder choice
+	var encoder string
+	if s.cfg.Stream.VideoCodec == "h264" {
+		// Optimized H.264 for ARM64 using OpenH264 (Software but highly efficient)
+		encoder = fmt.Sprintf("openh264enc bitrate=%d complexity=0 multi-thread=2 ! video/x-h264,profile=baseline", s.cfg.Stream.MaxBitrateKbps*1000)
+	} else {
+		switch s.cfg.Stream.Encoder {
+		case "vaapi":
+			encoder = fmt.Sprintf("vaapivp8enc bitrate=%d keyframe-period=25", s.cfg.Stream.MaxBitrateKbps)
+		case "nvenc":
+			encoder = fmt.Sprintf("nvvp8enc bitrate=%d gop-size=25", s.cfg.Stream.MaxBitrateKbps*1000)
+		default:
+			encoder = fmt.Sprintf("vp8enc target-bitrate=%d cpu-used=16 deadline=1 end-usage=cbr threads=4 static-threshold=0 lag-in-frames=0 undershoot=95 buffer-size=%d buffer-initial-size=%d buffer-optimal-size=%d error-resilient=1 keyframe-max-dist=25 min-quantizer=4 max-quantizer=20",
+				s.cfg.Stream.MaxBitrateKbps*650,
+				s.cfg.Stream.MaxBitrateKbps*4,
+				s.cfg.Stream.MaxBitrateKbps*2,
+				s.cfg.Stream.MaxBitrateKbps*3)
+		}
+	}
+
 	videoPipelineStr := fmt.Sprintf(
 		"ximagesrc display-name=:%d show-pointer=true use-damage=false ! "+
 			"video/x-raw,framerate=%d/1 ! videoconvert ! queue max-size-buffers=1 ! "+
-			"vp8enc target-bitrate=%d cpu-used=16 deadline=1 end-usage=cbr threads=4 static-threshold=0 "+
-			"lag-in-frames=0 "+
-			"undershoot=95 buffer-size=%d buffer-initial-size=%d buffer-optimal-size=%d "+
-			"error-resilient=1 keyframe-max-dist=25 min-quantizer=4 max-quantizer=20 ! "+
-			"appsink name=appsink emit-signals=true sync=false drop=true max-buffers=1",
+			"%s ! appsink name=appsink emit-signals=true sync=false drop=true max-buffers=1",
 		s.cfg.Display.DisplayNum,
 		s.cfg.Stream.TargetFPS,
-		s.cfg.Stream.MaxBitrateKbps*650,
-		s.cfg.Stream.MaxBitrateKbps*4,
-		s.cfg.Stream.MaxBitrateKbps*2,
-		s.cfg.Stream.MaxBitrateKbps*3,
+		encoder,
 	)
 
+	log.Info().
+		Str("codec", s.cfg.Stream.VideoCodec).
+		Str("encoder", s.cfg.Stream.Encoder).
+		Msg("starting video pipeline")
 	videoPipeline, err := gst.CreatePipeline(videoPipelineStr)
 	if err != nil {
 		return err

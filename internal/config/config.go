@@ -55,6 +55,7 @@ type StreamConfig struct {
 	TargetFPS      int    `json:"target_fps"`
 	MaxBitrateKbps int    `json:"max_bitrate_kbps"`
 	QualityPreset  string `json:"quality_preset"`
+	Encoder        string `json:"encoder"` // software, vaapi, nvenc
 }
 
 // SessionConfig contains session management settings.
@@ -98,6 +99,7 @@ func Defaults() *Config {
 			TargetFPS:      60,
 			MaxBitrateKbps: 4000,
 			QualityPreset:  "balanced",
+			Encoder:        "software",
 		},
 		Session: SessionConfig{
 			MaxSessions:        1,
@@ -215,6 +217,9 @@ func (c *Config) ApplyEnv() {
 	}
 	if level := os.Getenv("VBROWSER_LOG_LEVEL"); level != "" {
 		c.Logging.Level = level
+	}
+	if encoder := os.Getenv("VBROWSER_ENCODER"); encoder != "" {
+		c.Stream.Encoder = encoder
 	}
 	if file := os.Getenv("VBROWSER_LOG_FILE"); file != "" {
 		c.Logging.File = file
