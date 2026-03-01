@@ -66,6 +66,9 @@ var startCmd = &cobra.Command{
 			daemon.Stderr = nil
 			daemon.Stdin = nil
 			daemon.Env = append(os.Environ(), fmt.Sprintf("VBROWSER_LOG_FILE=%s", cfg.Logging.File))
+			daemon.SysProcAttr = &syscall.SysProcAttr{
+				Setsid: true,
+			}
 
 			if err := daemon.Start(); err != nil {
 				return fmt.Errorf("daemonize: %w", err)

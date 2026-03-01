@@ -9,9 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Config Command**: New `config` command to manage server settings (`auth`, `port`, `browser`) from the CLI.
+- **Systemd Service**: Added `service install/uninstall` commands to easily run vbrowser as a robust systemd user service.
 - **Custom Login Page**: Replaced the browser's basic auth prompt with a sleek, password-only login page.
 - **Cookie-Based Auth**: Implemented secure cookie-based authentication for a better user experience.
 - **Enhanced Start Output**: The `start` command now displays the server URL and port when running in the background.
+
+### Fixed
+- **Daemon Detachment**: Fixed an issue where the background daemon would exit when the terminal session closed by adding proper process group detachment (`setsid`).
 
 ## [0.5.1] - 2026-03-01
 

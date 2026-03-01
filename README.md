@@ -142,6 +142,16 @@ vbrowser config port 8080
 vbrowser config browser firefox
 ```
 
+### service
+Manage vbrowser as a systemd user service:
+```bash
+# Install and start the service
+vbrowser service install
+
+# Uninstall the service
+vbrowser service uninstall
+```
+
 ### use
 Switch between Chrome, Chromium, and Firefox:
 ```bash
