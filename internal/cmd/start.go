@@ -72,6 +72,7 @@ var startCmd = &cobra.Command{
 			}
 
 			fmt.Printf("vbrowser starting in background (PID %d)\n", daemon.Process.Pid)
+			fmt.Printf("URL:  http://%s:%d\n", cfg.Server.Host, cfg.Server.Port)
 			fmt.Printf("Logs: %s\n", cfg.Logging.File)
 			return nil
 		}

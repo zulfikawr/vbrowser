@@ -128,6 +128,20 @@ Flags:
       --port int       Override server port
 ```
 
+### config
+Manage vbrowser configuration:
+```bash
+# Configure authentication
+vbrowser config auth on mypassword
+vbrowser config auth off
+
+# Set server port
+vbrowser config port 8080
+
+# Set preferred browser
+vbrowser config browser firefox
+```
+
 ### use
 Switch between Chrome, Chromium, and Firefox:
 ```bash

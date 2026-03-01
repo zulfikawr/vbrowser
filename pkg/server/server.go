@@ -50,6 +50,7 @@ func (s *Server) Start() error {
 
 	// Serve embedded UI
 	mux.HandleFunc("/", s.handleIndex)
+	mux.HandleFunc("/login", s.handleLogin)
 	mux.HandleFunc("/client.js", s.handleClientJS)
 	mux.HandleFunc("/guacamole-keyboard.js", s.handleGuacamoleJS)
 	mux.HandleFunc("/health", s.handleHealth)
@@ -60,7 +61,7 @@ func (s *Server) Start() error {
 	addr := fmt.Sprintf("%s:%d", s.cfg.Server.Host, s.cfg.Server.Port)
 	s.server = &http.Server{
 		Addr:         addr,
-		Handler:      s.logMiddleware(mux),
+		Handler:      s.authMiddleware(s.logMiddleware(mux)),
 		ReadTimeout:  1 * time.Hour,
 		WriteTimeout: 1 * time.Hour,
 		IdleTimeout:  1 * time.Hour,
@@ -141,6 +142,52 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
+func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		data, err := uiFiles.ReadFile("ui/login.html")
+		if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(data)
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		password := r.FormValue("password")
+		if password == s.cfg.Server.Auth.Token {
+			http.SetCookie(w, &http.Cookie{
+				Name:     "vbrowser_auth",
+				Value:    s.cfg.Server.Auth.Token,
+				Path:     "/",
+				HttpOnly: true,
+				MaxAge:   86400 * 30, // 30 days
+			})
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
+		http.Redirect(w, r, "/login?error=1", http.StatusSeeOther)
+	}
+}
+
+func (s *Server) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.cfg.Server.Auth.Enabled || r.URL.Path == "/login" || r.URL.Path == "/health" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		cookie, err := r.Cookie("vbrowser_auth")
+		if err != nil || cookie.Value != s.cfg.Server.Auth.Token {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) logMiddleware(next http.Handler) http.Handler {
