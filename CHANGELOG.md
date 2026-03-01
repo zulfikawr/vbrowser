@@ -12,10 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **H.264 Codec Support**: New support for H.264 video codec with optimized `openh264enc` settings for ARM64 and low-power systems.
 - **Dynamic Encoding**: Added `stream.encoder` and `stream.video_codec` configuration options.
 - **CLI QoL Commands**: Added `vbrowser list` to show detected browsers and `vbrowser logs` for easy access to live service logs.
+- **Process Reaper**: Implemented `PR_SET_PDEATHSIG` for all child processes (Xvfb, Browser) to ensure they are automatically terminated if the main process crashes or is killed.
+- **Secure Authentication**: Switched from raw-text cookies to SHA-256 hashed tokens for improved session security.
+- **Login UI Polish**: Added a password visibility toggle (eye icon) and improved input alignment on the login page.
 - **Documentation Overhaul**: Created a dedicated `docs/` folder with detailed guides for installation, CLI, and configuration.
 
 ### Changed
 - **Command Cleanup**: Removed redundant `vbrowser use` command in favor of `vbrowser config browser`.
+- **Audio Isolation**: Refactored PulseAudio initialization to be non-destructive and isolated for shared environments.
+- **Graceful Shutdown**: Enhanced the cleanup sequence with timeouts and more reliable process termination.
 
 ### Removed
 - **Redundant Logic**: Deleted unused legacy capture package and redundant FFmpeg-based encoder logic to streamline the codebase.
@@ -144,6 +149,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PulseAudio integration for audio capture
 - Xvfb virtual display support
 
+[0.7.0]: https://github.com/zulfikawr/vbrowser/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/zulfikawr/vbrowser/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/zulfikawr/vbrowser/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/zulfikawr/vbrowser/compare/v0.5.1...v0.5.2

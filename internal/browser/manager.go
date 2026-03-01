@@ -23,6 +23,7 @@ type Manager struct {
 	xvfbCmd     *exec.Cmd
 	browserPid  int
 	browserPath string
+	pulseModule string
 }
 
 // NewManager creates a new browser manager.
@@ -33,21 +34,24 @@ func NewManager(cfg *config.Config) *Manager {
 }
 
 func (m *Manager) initPulseAudio() string {
-	_ = exec.Command("pulseaudio", "--kill").Run()
-	time.Sleep(500 * time.Millisecond)
-
-	_ = exec.Command("pulseaudio", "--start", "--exit-idle-time=-1").Run()
-	time.Sleep(500 * time.Millisecond)
-
-	_ = exec.Command("pactl", "unload-module", "module-suspend-on-idle").Run()
-
 	sinkName := fmt.Sprintf("vbrowser-%d", m.cfg.Display.DisplayNum)
 
-	_ = exec.Command("pactl", "load-module", "module-null-sink",
-		fmt.Sprintf("sink_name=%s", sinkName),
-		fmt.Sprintf("sink_properties=device.description=%s", sinkName)).Run()
+	// Ensure pulseaudio is running (non-destructively)
+	_ = exec.Command("pulseaudio", "--start", "--exit-idle-time=-1").Run()
 
-	_ = exec.Command("pactl", "set-default-sink", sinkName).Run()
+	// Load null sink module
+	cmd := exec.Command("pactl", "load-module", "module-null-sink",
+		fmt.Sprintf("sink_name=%s", sinkName),
+		fmt.Sprintf("sink_properties=device.description=%s", sinkName))
+
+	out, err := cmd.Output()
+	if err == nil {
+		m.pulseModule = strings.TrimSpace(string(out))
+		log.Info().Str("sink", sinkName).Str("module", m.pulseModule).Msg("PulseAudio sink initialized")
+	} else {
+		log.Warn().Err(err).Msg("Failed to load PulseAudio module (might already be loaded)")
+	}
+
 	_ = exec.Command("pactl", "set-sink-mute", sinkName, "0").Run()
 	_ = exec.Command("pactl", "set-sink-volume", sinkName, "100%").Run()
 
@@ -59,7 +63,6 @@ func (m *Manager) getEffectiveProfileDir() string {
 	baseDir := m.cfg.Browser.ProfileDir
 	if m.isFirefox() {
 		// Firefox Snap on Ubuntu cannot access hidden directories like .local
-		// We'll use a more standard path for the firefox profile if it's linux
 		if runtime.GOOS == "linux" {
 			home, _ := os.UserHomeDir()
 			return filepath.Join(home, "vbrowser_firefox_profile")
@@ -85,14 +88,16 @@ func (m *Manager) Start(browserPath string) error {
 			return fmt.Errorf("start xvfb: %w", err)
 		}
 		m.xvfbCmd = xvfb
+		// Ensure Xvfb dies if vbrowser dies
+		if m.xvfbCmd.SysProcAttr == nil {
+			m.xvfbCmd.SysProcAttr = &syscall.SysProcAttr{}
+		}
+		m.xvfbCmd.SysProcAttr.Pdeathsig = syscall.SIGKILL
 
 		// Open X11 display for native input handling
 		displayStr := fmt.Sprintf(":%d", m.cfg.Display.DisplayNum)
-
-		// Set DISPLAY env variable so C.XOpenDisplay(NULL) or C.XOpenDisplay(":99") works
 		os.Setenv("DISPLAY", displayStr)
 
-		// Wait a bit for Xvfb to be fully ready before opening the display
 		success := false
 		for i := 0; i < 20; i++ {
 			if xorg.DisplayOpen(displayStr) {
@@ -113,9 +118,11 @@ func (m *Manager) Start(browserPath string) error {
 	}
 
 	args := m.buildBrowserArgs()
-
 	m.browserCmd = exec.Command(browserPath, args...)
-	m.browserCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	m.browserCmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid:   true,
+		Pdeathsig: syscall.SIGKILL,
+	}
 
 	// Set environment variables
 	env := os.Environ()
@@ -136,11 +143,7 @@ func (m *Manager) Start(browserPath string) error {
 	}
 
 	m.browserPid = m.browserCmd.Process.Pid
-
-	log.Info().
-		Int("pid", m.browserPid).
-		Str("path", browserPath).
-		Msg("browser started")
+	log.Info().Int("pid", m.browserPid).Str("path", browserPath).Msg("browser started")
 
 	return nil
 }
@@ -155,12 +158,25 @@ func (m *Manager) Stop() error {
 		} else {
 			_ = m.browserCmd.Process.Signal(syscall.SIGTERM)
 		}
-		_ = m.browserCmd.Wait()
+
+		// Wait with timeout
+		done := make(chan error, 1)
+		go func() { done <- m.browserCmd.Wait() }()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			_ = m.browserCmd.Process.Kill()
+		}
 	}
 
 	xorg.DisplayClose()
 	m.stopXvfb()
-	_ = exec.Command("pulseaudio", "--kill").Run()
+
+	// Unload PulseAudio module instead of killing the whole daemon
+	if m.pulseModule != "" {
+		log.Info().Str("module", m.pulseModule).Msg("Unloading PulseAudio module")
+		_ = exec.Command("pactl", "unload-module", m.pulseModule).Run()
+	}
 
 	return nil
 }
@@ -194,11 +210,14 @@ func (m *Manager) Restart(browserPath string) error {
 func (m *Manager) stopXvfb() {
 	if m.xvfbCmd != nil && m.xvfbCmd.Process != nil {
 		log.Info().Int("pid", m.xvfbCmd.Process.Pid).Msg("stopping Xvfb")
-		if err := m.xvfbCmd.Process.Kill(); err != nil {
-			log.Warn().Err(err).Msg("failed to kill Xvfb")
-		}
-		if err := m.xvfbCmd.Wait(); err != nil {
-			log.Debug().Err(err).Msg("xvfb wait error")
+		_ = m.xvfbCmd.Process.Signal(syscall.SIGTERM)
+
+		done := make(chan error, 1)
+		go func() { done <- m.xvfbCmd.Wait() }()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			_ = m.xvfbCmd.Process.Kill()
 		}
 	}
 }
@@ -214,7 +233,6 @@ func (m *Manager) initFirefoxProfile() error {
 		return fmt.Errorf("create profile dir: %w", err)
 	}
 
-	// Remove stale lock files that cause "Firefox is already running" errors
 	os.Remove(filepath.Join(profileDir, "lock"))
 	os.Remove(filepath.Join(profileDir, ".parentlock"))
 	os.Remove(filepath.Join(profileDir, "parent.lock"))

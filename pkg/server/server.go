@@ -3,7 +3,9 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"sync"
@@ -159,9 +161,13 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		password := r.FormValue("password")
 		if password == s.cfg.Server.Auth.Token {
+			// Hash the token so we don't expose the raw password in the cookie
+			hash := sha256.Sum256([]byte(s.cfg.Server.Auth.Token))
+			tokenHash := hex.EncodeToString(hash[:])
+
 			http.SetCookie(w, &http.Cookie{
 				Name:     "vbrowser_auth",
-				Value:    s.cfg.Server.Auth.Token,
+				Value:    tokenHash,
 				Path:     "/",
 				HttpOnly: true,
 				MaxAge:   86400 * 30, // 30 days
@@ -181,7 +187,16 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		}
 
 		cookie, err := r.Cookie("vbrowser_auth")
-		if err != nil || cookie.Value != s.cfg.Server.Auth.Token {
+		if err != nil {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		// Verify hash
+		hash := sha256.Sum256([]byte(s.cfg.Server.Auth.Token))
+		tokenHash := hex.EncodeToString(hash[:])
+
+		if cookie.Value != tokenHash {
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
