@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **H.264 Codec Support**: New support for H.264 video codec with optimized `openh264enc` settings for ARM64 and low-power systems.
 - **Dynamic Encoding**: Added `stream.encoder` and `stream.video_codec` configuration options.
 - **CLI QoL Commands**: Added `vbrowser list` to show detected browsers and `vbrowser logs` for easy access to live service logs.
+- **Documentation Overhaul**: Created a dedicated `docs/` folder with detailed guides for installation, CLI, and configuration.
 
 ### Changed
 - **Command Cleanup**: Removed redundant `vbrowser use` command in favor of `vbrowser config browser`.
