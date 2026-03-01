@@ -137,6 +137,12 @@ vbrowser use firefox
 ```
 This will find the browser on your system and save its path to the configuration file.
 
+### update
+Check for updates on GitHub:
+```bash
+vbrowser update
+```
+
 ### stop
 Stop the running daemon:
 ```bash
