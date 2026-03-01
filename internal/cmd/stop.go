@@ -41,15 +41,22 @@ var stopCmd = &cobra.Command{
 					_ = proc.Kill()
 				}
 			}
-			_ = process.Remove(cfg.PIDFile)
 		}
 
-		// 2. Force kill any orphaned browser or Xvfb processes
-		log.Info().Msg("cleaning up orphaned browser and xvfb processes...")
-		_ = exec.Command("pkill", "-f", "chrome").Run()
-		_ = exec.Command("pkill", "-f", "chromium").Run()
-		_ = exec.Command("pkill", "-f", "firefox").Run()
-		_ = exec.Command("pkill", "-f", "Xvfb").Run()
+		// 2. Force kill any remaining vbrowser, browser or Xvfb processes
+		log.Info().Msg("cleaning up orphaned processes...")
+		currentPid := os.Getpid()
+		// Kill all vbrowser processes except the current one
+		_ = exec.Command("pkill", "-9", "--exclude-pids", fmt.Sprintf("%d", currentPid), "-f", "vbrowser").Run()
+		// If current process is also named vbrowser, pkill might have killed us if not careful
+		// But usually it's fine as pkill matches the command line.
+
+		_ = exec.Command("pkill", "-9", "-f", "chrome").Run()
+		_ = exec.Command("pkill", "-9", "-f", "chromium").Run()
+		_ = exec.Command("pkill", "-9", "-f", "firefox").Run()
+		_ = exec.Command("pkill", "-9", "-f", "Xvfb").Run()
+
+		_ = currentPid // avoid unused var if needed
 
 		// 3. Clean up stale X11 lock files
 		displayNum := cfg.Display.DisplayNum

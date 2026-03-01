@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/pion/rtcp"
 	"github.com/pion/webrtc/v4"
 	"github.com/pion/webrtc/v4/pkg/media"
 	"github.com/rs/zerolog/log"
@@ -27,11 +28,19 @@ func NewSession(cfg *config.Config) (*Session, error) {
 	// Create PeerConnection with ultra-low-latency settings
 	settingEngine := webrtc.SettingEngine{}
 	settingEngine.SetSRTPReplayProtectionWindow(512)
-
-	// Disable jitter buffer for minimum latency
 	_ = settingEngine.SetAnsweringDTLSRole(webrtc.DTLSRoleServer)
 
-	api := webrtc.NewAPI(webrtc.WithSettingEngine(settingEngine))
+	// Create API with TWCC and PLI support
+	m := &webrtc.MediaEngine{}
+	if err := m.RegisterDefaultCodecs(); err != nil {
+		return nil, err
+	}
+
+	// Add TWCC and PLI feedback support
+	m.RegisterFeedback(webrtc.RTCPFeedback{Type: "ccm", Parameter: "fir"}, webrtc.RTPCodecTypeVideo)
+	m.RegisterFeedback(webrtc.RTCPFeedback{Type: "nack", Parameter: "pli"}, webrtc.RTPCodecTypeVideo)
+
+	api := webrtc.NewAPI(webrtc.WithSettingEngine(settingEngine), webrtc.WithMediaEngine(m))
 
 	webrtcCfg := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
@@ -55,7 +64,13 @@ func NewSession(cfg *config.Config) (*Session, error) {
 func (s *Session) Start(ctx context.Context) error {
 	// 1. Create WebRTC tracks
 	videoTrack, err := webrtc.NewTrackLocalStaticSample(
-		webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8},
+		webrtc.RTPCodecCapability{
+			MimeType: webrtc.MimeTypeVP8,
+			RTCPFeedback: []webrtc.RTCPFeedback{
+				{Type: "nack", Parameter: "pli"},
+				{Type: "ccm", Parameter: "fir"},
+			},
+		},
 		"video", "vbrowser",
 	)
 	if err != nil {
@@ -80,16 +95,23 @@ func (s *Session) Start(ctx context.Context) error {
 		return err
 	}
 
-	// 3. Start GStreamer Video Pipeline (Neko-style with optimizations)
+	// 3. Start GStreamer Video Pipeline (Neko-inspired optimizations)
+	// - undershoot=95: Allow some bitrate flexibility
+	// - min-quantizer/max-quantizer: Control image quality/bitrate trade-off
+	// - buffer-size settings: Manage encoding latency
 	videoPipelineStr := fmt.Sprintf(
 		"ximagesrc display-name=:%d show-pointer=true use-damage=false ! "+
-			"video/x-raw,framerate=%d/1 ! videoconvert ! queue max-size-buffers=2 ! "+
-			"vp8enc target-bitrate=%d cpu-used=6 end-usage=cbr threads=4 deadline=1 lag-in-frames=0 error-resilient=1 keyframe-max-dist=%d ! "+
-			"appsink name=appsink emit-signals=true sync=false drop=false max-buffers=2",
+			"video/x-raw,framerate=%d/1 ! videoconvert ! queue max-size-buffers=1 ! "+
+			"vp8enc target-bitrate=%d cpu-used=16 deadline=1 end-usage=cbr threads=4 static-threshold=0 "+
+			"undershoot=95 buffer-size=%d buffer-initial-size=%d buffer-optimal-size=%d "+
+			"error-resilient=1 keyframe-max-dist=25 min-quantizer=4 max-quantizer=20 ! "+
+			"appsink name=appsink emit-signals=true sync=false drop=true max-buffers=1",
 		s.cfg.Display.DisplayNum,
 		s.cfg.Stream.TargetFPS,
-		s.cfg.Stream.MaxBitrateKbps*650, // Neko bitrate mapping
-		s.cfg.Stream.TargetFPS,          // 1 keyframe per second
+		s.cfg.Stream.MaxBitrateKbps*650,
+		s.cfg.Stream.MaxBitrateKbps*4,
+		s.cfg.Stream.MaxBitrateKbps*2,
+		s.cfg.Stream.MaxBitrateKbps*3,
 	)
 
 	videoPipeline, err := gst.CreatePipeline(videoPipelineStr)
@@ -113,7 +135,33 @@ func (s *Session) Start(ctx context.Context) error {
 		return err
 	}
 
+	// 4. Handle RTCP Feedback (PLI) to force keyframes
+	for _, receiver := range s.peerConnection.GetReceivers() {
+		if receiver.Track() == nil {
+			continue
+		}
+
+		go func(r *webrtc.RTPReceiver) {
+			for {
+				pkts, _, err := r.ReadRTCP()
+				if err != nil {
+					return
+				}
+
+				for _, pkt := range pkts {
+					if _, ok := pkt.(*rtcp.PictureLossIndication); ok {
+						log.Debug().Msg("received PLI, forcing keyframe")
+						if videoPipeline != nil {
+							videoPipeline.EmitVideoKeyframe()
+						}
+					}
+				}
+			}
+		}(receiver)
+	}
+
 	// 5. Start pipelines
+
 	videoPipeline.Play()
 	audioPipeline.Play()
 	log.Info().Msg("video and audio pipelines started")

@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-03-02
+
+### Added
+- **Systemd Service Management**: New `vbrowser service install/uninstall` commands to run vbrowser as a robust background service with auto-restart.
+- **Automatic Clipboard Sync**: Fully automatic, bi-directional clipboard synchronization between local and virtual browsers using a transparent input overlay.
+- **Ultra-Low Latency Streaming**: Major GStreamer and WebRTC optimizations including PLI (Picture Loss Indication) support and refined VP8 encoding parameters.
+- **Improved Input Handling**: Re-engineered input logic using a transparent textarea overlay for near-native typing and interaction reliability.
+
+### Changed
+- **Persistent Connections**: The stream now remains live in the background when the browser tab is hidden, eliminating reconnection delays.
+- **Responsive Browser Flags**: Optimized Chromium and Firefox launch arguments to prevent background throttling and sleep modes.
+
+### Fixed
+- **Stop Command Reliability**: The `stop` command is now more aggressive and correctly stops the systemd service to prevent unwanted auto-restarts.
+
 ## [0.5.2] - 2026-03-01
 
 ### Added
@@ -105,6 +120,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PulseAudio integration for audio capture
 - Xvfb virtual display support
 
+[0.6.0]: https://github.com/zulfikawr/vbrowser/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/zulfikawr/vbrowser/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/zulfikawr/vbrowser/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/zulfikawr/vbrowser/compare/v0.4.0...v0.5.0

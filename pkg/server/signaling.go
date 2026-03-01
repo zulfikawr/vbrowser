@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 	"github.com/rs/zerolog/log"
+	"github.com/zulfikawr/vbrowser/internal/platform"
 	"github.com/zulfikawr/vbrowser/internal/stream"
 	"github.com/zulfikawr/vbrowser/pkg/xorg"
 )
@@ -24,6 +25,7 @@ type SignalingMessage struct {
 	SDP       *webrtc.SessionDescription `json:"sdp,omitempty"`
 	Candidate *webrtc.ICECandidateInit   `json:"candidate,omitempty"`
 	Input     *InputMessage              `json:"input,omitempty"`
+	Clipboard string                     `json:"clipboard,omitempty"`
 	Cursor    string                     `json:"cursor,omitempty"`
 	Config    *ConfigMessage             `json:"config,omitempty"`
 }
@@ -123,6 +125,18 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Start clipboard watcher
+	log.Debug().Msg("launching clipboard watcher goroutine")
+	go platform.WatchClipboard(ctx, s.cfg.Display.DisplayNum, func(content string) {
+		log.Debug().Int("len", len(content)).Msg("pushing clipboard to client")
+		s.wsWriteMu.Lock()
+		_ = conn.WriteJSON(SignalingMessage{
+			Type:      "clipboard",
+			Clipboard: content,
+		})
+		s.wsWriteMu.Unlock()
+	})
+
 	// Handle incoming messages
 	for {
 		var msg SignalingMessage
@@ -201,6 +215,29 @@ func (s *Server) handleSignalingMessage(session *stream.Session, conn *websocket
 			return fmt.Errorf("config message missing data")
 		}
 		s.handleConfigChange(msg.Config)
+
+	case "clipboard":
+		log.Debug().Msg("received clipboard message from client")
+		if msg.Clipboard != "" {
+			log.Debug().Msg("writing to browser clipboard")
+			platform.SetLastContent(msg.Clipboard)
+			if err := platform.WriteClipboard(s.cfg.Display.DisplayNum, msg.Clipboard); err != nil {
+				log.Error().Err(err).Msg("failed to write clipboard")
+			}
+		} else {
+			// Request clipboard from browser
+			content, err := platform.ReadClipboard(s.cfg.Display.DisplayNum)
+			if err != nil {
+				log.Error().Err(err).Msg("failed to read clipboard")
+				return nil
+			}
+			s.wsWriteMu.Lock()
+			_ = conn.WriteJSON(SignalingMessage{
+				Type:      "clipboard",
+				Clipboard: content,
+			})
+			s.wsWriteMu.Unlock()
+		}
 
 	default:
 		return fmt.Errorf("unknown message type: %s", msg.Type)

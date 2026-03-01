@@ -10,6 +10,8 @@
   const selectFps = document.getElementById("select-fps");
   const selectBitrate = document.getElementById("select-bitrate");
   const btnApply = document.getElementById("btn-apply");
+  const notification = document.getElementById("notification");
+  const inputOverlay = document.getElementById("input-overlay");
 
   // UI Elements
   const settingsBtn = document.getElementById("settings-button");
@@ -39,11 +41,17 @@
     sidePanel.classList.remove("open");
   });
 
-  // Close panel when clicking outside on the video
-  video.addEventListener("click", () => {
+  // Disable default context menu
+  window.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+  });
+
+  // Close panel and focus helper when clicking
+  inputOverlay.addEventListener("click", () => {
     if (sidePanel.classList.contains("open")) {
       sidePanel.classList.remove("open");
     }
+    inputOverlay.focus();
   });
 
   function startPlayback() {
@@ -72,6 +80,7 @@
         }, 1000);
 
         console.log("Autoplay successful (muted)");
+        inputOverlay.focus();
       })
       .catch((err) => {
         console.error("Autoplay failed:", err);
@@ -84,17 +93,11 @@
     video.muted = false; // Unmute on user click
     overlay.classList.remove("visible");
     video.play();
+    inputOverlay.focus();
   });
 
-  // Handle tab visibility changes to prevent throttling lag
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      console.log("Tab backgrounded, disconnecting to prevent lag buildup");
-      disconnect();
-    } else {
-      console.log("Tab foregrounded, reconnecting for fresh stream");
-      connect();
-    }
+  window.addEventListener("focus", () => {
+    syncClipboard();
   });
 
   function getMousePos(e) {
@@ -131,7 +134,7 @@
     return { x: Math.round(x), y: Math.round(y) };
   }
 
-  video.addEventListener("mousedown", (e) => {
+  inputOverlay.addEventListener("mousedown", (e) => {
     if (sidePanel.classList.contains("open")) return;
 
     const pos = getMousePos(e);
@@ -144,9 +147,10 @@
         button: e.button,
       },
     });
+    inputOverlay.focus();
   });
 
-  video.addEventListener("mouseup", (e) => {
+  inputOverlay.addEventListener("mouseup", (e) => {
     if (sidePanel.classList.contains("open")) return;
 
     const pos = getMousePos(e);
@@ -161,7 +165,7 @@
     });
   });
 
-  video.addEventListener("mousemove", (e) => {
+  inputOverlay.addEventListener("mousemove", (e) => {
     if (sidePanel.classList.contains("open")) return;
 
     const pos = getMousePos(e);
@@ -175,7 +179,7 @@
     });
   });
 
-  video.addEventListener(
+  inputOverlay.addEventListener(
     "wheel",
     (e) => {
       if (sidePanel.classList.contains("open")) return;
@@ -187,11 +191,9 @@
       let deltaY = e.deltaY;
 
       if (e.deltaMode === 1) {
-        // DOM_DELTA_LINE
         deltaX *= 15;
         deltaY *= 15;
       } else if (e.deltaMode === 2) {
-        // DOM_DELTA_PAGE
         deltaX *= 100;
         deltaY *= 100;
       }
@@ -243,7 +245,44 @@
     });
   };
 
-  keyboard.listenTo(document);
+  keyboard.listenTo(inputOverlay);
+
+  function showNotification(msg) {
+    notification.textContent = msg;
+    notification.style.opacity = "1";
+    setTimeout(() => {
+      notification.style.opacity = "0";
+    }, 2000);
+  }
+
+  // Automatic Clipboard Sync: Local -> Remote
+  inputOverlay.addEventListener("paste", (e) => {
+    const text = e.clipboardData.getData("text");
+    if (text) {
+      console.log("Pasting to virtual browser:", text.length, "chars");
+      send({ type: "clipboard", clipboard: text });
+      showNotification("Pasted to virtual browser");
+      setTimeout(() => {
+        inputOverlay.value = "";
+      }, 10);
+    }
+  });
+
+  async function syncClipboard() {
+    if (!window.document.hasFocus()) return;
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        send({ type: "clipboard", clipboard: text });
+      }
+    } catch (err) {
+      // Restricted
+    }
+  }
+
+  inputOverlay.addEventListener("mouseenter", () => {
+    syncClipboard();
+  });
 
   btnApply.addEventListener("click", () => {
     let width = 1280;
@@ -312,7 +351,7 @@
       heartbeatInterval = null;
     }
     if (ws) {
-      ws.onclose = null; // Prevent reconnect on intentional close
+      ws.onclose = null;
       ws.close();
       ws = null;
     }
@@ -393,16 +432,23 @@
 
           const videoTrack = stream.getVideoTracks()[0];
           if (videoTrack) {
-            if ("contentHint" in videoTrack) {
-              videoTrack.contentHint = "motion";
-            }
-            if ("playoutDelayHint" in videoTrack) {
+            if ("contentHint" in videoTrack) videoTrack.contentHint = "motion";
+            if ("playoutDelayHint" in videoTrack)
               videoTrack.playoutDelayHint = 0;
-            }
           }
 
           updateStatus("connected");
           startPlayback();
+
+          // Catch-up mechanism
+          setInterval(() => {
+            if (video.buffered.length > 0) {
+              const last = video.buffered.end(video.buffered.length - 1);
+              if (last - video.currentTime > 1) {
+                video.currentTime = last - 0.05;
+              }
+            }
+          }, 2000);
         }
       };
 
@@ -439,7 +485,6 @@
   async function handleMessage(msg) {
     switch (msg.type) {
       case "pong":
-        // Heartbeat success
         break;
       case "answer":
         if (pc && msg.sdp)
@@ -473,6 +518,16 @@
         break;
       case "error":
         updateStatus("disconnected");
+        break;
+      case "clipboard":
+        if (msg.clipboard) {
+          navigator.clipboard
+            .writeText(msg.clipboard)
+            .then(() => {
+              showNotification("Clipboard synced from virtual browser");
+            })
+            .catch(() => {});
+        }
         break;
     }
   }
