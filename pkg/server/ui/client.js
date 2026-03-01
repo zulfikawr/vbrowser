@@ -97,8 +97,36 @@
   });
 
   window.addEventListener("focus", () => {
+    console.log("Tab focused, requesting immediate catch-up");
     syncClipboard();
+    jumpToLive();
+    requestKeyframe();
+    // Double-tap catch-up to be sure
+    setTimeout(jumpToLive, 200);
+    setTimeout(jumpToLive, 500);
   });
+
+  function jumpToLive() {
+    if (video.buffered.length > 0) {
+      const last = video.buffered.end(video.buffered.length - 1);
+      const diff = last - video.currentTime;
+      
+      if (diff > 0.5) {
+        console.log("Jumping to live:", diff);
+        video.currentTime = last - 0.05;
+        video.playbackRate = 1.0;
+      } else if (diff > 0.2) {
+        // Slightly speed up to catch up naturally
+        video.playbackRate = 1.1;
+      } else {
+        video.playbackRate = 1.0;
+      }
+    }
+  }
+
+  function requestKeyframe() {
+    send({ type: "pli" });
+  }
 
   function getMousePos(e) {
     const rect = video.getBoundingClientRect();
@@ -442,13 +470,8 @@
 
           // Catch-up mechanism
           setInterval(() => {
-            if (video.buffered.length > 0) {
-              const last = video.buffered.end(video.buffered.length - 1);
-              if (last - video.currentTime > 1) {
-                video.currentTime = last - 0.05;
-              }
-            }
-          }, 2000);
+            jumpToLive();
+          }, 500);
         }
       };
 

@@ -216,6 +216,12 @@ func (s *Server) handleSignalingMessage(session *stream.Session, conn *websocket
 		}
 		s.handleConfigChange(msg.Config)
 
+	case "pli":
+		log.Debug().Msg("received manual PLI request from client")
+		if s.currentSession != nil {
+			s.currentSession.RequestKeyframe()
+		}
+
 	case "clipboard":
 		log.Debug().Msg("received clipboard message from client")
 		if msg.Clipboard != "" {

@@ -19,6 +19,7 @@ type Session struct {
 	peerConnection *webrtc.PeerConnection
 	videoTrack     *webrtc.TrackLocalStaticSample
 	audioTrack     *webrtc.TrackLocalStaticSample
+	videoPipeline  gst.Pipeline
 	stopOnce       sync.Once
 	done           chan struct{}
 }
@@ -103,6 +104,7 @@ func (s *Session) Start(ctx context.Context) error {
 		"ximagesrc display-name=:%d show-pointer=true use-damage=false ! "+
 			"video/x-raw,framerate=%d/1 ! videoconvert ! queue max-size-buffers=1 ! "+
 			"vp8enc target-bitrate=%d cpu-used=16 deadline=1 end-usage=cbr threads=4 static-threshold=0 "+
+			"lag-in-frames=0 "+
 			"undershoot=95 buffer-size=%d buffer-initial-size=%d buffer-optimal-size=%d "+
 			"error-resilient=1 keyframe-max-dist=25 min-quantizer=4 max-quantizer=20 ! "+
 			"appsink name=appsink emit-signals=true sync=false drop=true max-buffers=1",
@@ -118,6 +120,7 @@ func (s *Session) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	s.videoPipeline = videoPipeline
 
 	// 4. Start GStreamer Audio Pipeline (Neko-style)
 	// captures from the .monitor of our null sink
@@ -200,6 +203,13 @@ func (s *Session) Start(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+// RequestKeyframe forces the video pipeline to emit a new keyframe.
+func (s *Session) RequestKeyframe() {
+	if s.videoPipeline != nil {
+		s.videoPipeline.EmitVideoKeyframe()
+	}
 }
 
 // SetRemoteDescription sets the session's remote description.
