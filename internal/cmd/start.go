@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -24,6 +26,56 @@ var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the vbrowser daemon",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if !foreground {
+			// Check if already running
+			if pid, err := process.Read(cfg.PIDFile); err == nil {
+				if process.IsRunning(pid) {
+					return fmt.Errorf("vbrowser is already running (PID %d)", pid)
+				}
+				log.Warn().Int("pid", pid).Msg("stale pid file found, removing")
+				if err := process.Remove(cfg.PIDFile); err != nil {
+					return fmt.Errorf("remove stale pid file: %w", err)
+				}
+			}
+
+			// Ensure log file is set if not provided
+			if cfg.Logging.File == "" {
+				homeDir, _ := os.UserHomeDir()
+				cfg.Logging.File = filepath.Join(homeDir, ".local/share/vbrowser/vbrowser.log")
+				if err := os.MkdirAll(filepath.Dir(cfg.Logging.File), 0755); err != nil {
+					return fmt.Errorf("create log directory: %w", err)
+				}
+			}
+
+			// Prepare command to run in background
+			executable, err := os.Executable()
+			if err != nil {
+				return fmt.Errorf("find executable: %w", err)
+			}
+
+			newArgs := []string{}
+			for _, arg := range os.Args[1:] {
+				if arg != "start" && arg != "-f" && arg != "--foreground" {
+					newArgs = append(newArgs, arg)
+				}
+			}
+			newArgs = append([]string{"start", "--foreground"}, newArgs...)
+
+			daemon := exec.Command(executable, newArgs...)
+			daemon.Stdout = nil
+			daemon.Stderr = nil
+			daemon.Stdin = nil
+			daemon.Env = append(os.Environ(), fmt.Sprintf("VBROWSER_LOG_FILE=%s", cfg.Logging.File))
+
+			if err := daemon.Start(); err != nil {
+				return fmt.Errorf("daemonize: %w", err)
+			}
+
+			fmt.Printf("vbrowser starting in background (PID %d)\n", daemon.Process.Pid)
+			fmt.Printf("Logs: %s\n", cfg.Logging.File)
+			return nil
+		}
+
 		if port > 0 {
 			cfg.Server.Port = port
 		}

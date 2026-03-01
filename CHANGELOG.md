@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-03-01
+
+### Added
+- **Daemon Mode**: The `start` command now runs vbrowser in the background by default.
+- **File Logging**: Added support for logging to a file. When running as a daemon, logs are written to `~/.local/share/vbrowser/vbrowser.log` by default.
+- **Foreground Flag**: Added `--foreground` (or `-f`) flag to the `start` command to run in the foreground and log to the console.
+- **Log File Configuration**: Added support for `VBROWSER_LOG_FILE` environment variable and `logging.file` configuration in `config.json`.
+
+### Changed
+- **Start Behavior**: The `start` command no longer blocks the terminal unless the `--foreground` flag is used.
+
 ## [0.4.0] - 2026-02-28
 
 ### Added
@@ -77,6 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PulseAudio integration for audio capture
 - Xvfb virtual display support
 
+[0.5.0]: https://github.com/zulfikawr/vbrowser/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/zulfikawr/vbrowser/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/zulfikawr/vbrowser/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/zulfikawr/vbrowser/compare/v0.1.0...v0.2.0

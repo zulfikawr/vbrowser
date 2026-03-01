@@ -216,6 +216,9 @@ func (c *Config) ApplyEnv() {
 	if level := os.Getenv("VBROWSER_LOG_LEVEL"); level != "" {
 		c.Logging.Level = level
 	}
+	if file := os.Getenv("VBROWSER_LOG_FILE"); file != "" {
+		c.Logging.File = file
+	}
 	if path := os.Getenv("VBROWSER_BROWSER_PATH"); path != "" {
 		c.Browser.BrowserPath = path
 	}
