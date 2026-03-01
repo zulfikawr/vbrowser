@@ -16,6 +16,9 @@ var stopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "Stop a running vbrowser daemon and clean up resources",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// 0. Try to stop systemd service if it exists and is running
+		_ = exec.Command("systemctl", "--user", "stop", "vbrowser.service").Run()
+
 		// 1. Try to stop via PID file first (graceful)
 		pid, err := process.Read(cfg.PIDFile)
 		if err == nil && process.IsRunning(pid) {
