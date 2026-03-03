@@ -16,6 +16,19 @@ vbrowser is a high-performance, single-binary tool that launches a browser on a 
 - 💾 **Persistence**: Preserves browser profiles (cookies, bookmarks, passwords).
 - 📋 **Auto Clipboard**: Seamless bi-directional clipboard synchronization.
 
+## Prerequisites
+
+To run vbrowser, your system must have the following dependencies installed:
+
+- **Go 1.25+**: For building from source.
+- **GStreamer 1.0+**: Core library and plugins (base, good, bad, ugly).
+- **X11 Libraries**: `libx11`, `libxrandr`, `libxtst`, `libxfixes`, `libxcvt`.
+- **PulseAudio**: `pulseaudio` and `gstreamer1.0-pulseaudio`.
+- **Virtual Tools**: `Xvfb` and `xdotool`.
+- **Browser**: Chrome, Chromium, or Firefox installed on the server.
+
+A Linux environment (Ubuntu/Debian recommended) is required.
+
 ## Quick Start
 
 ### 1. Install
@@ -25,7 +38,7 @@ curl -sSL https://raw.githubusercontent.com/zulfikawr/vbrowser/main/scripts/inst
 
 ### 2. Start
 ```bash
-./vbrowser start
+vbrowser start
 ```
 
 ### 3. Access
