@@ -5,10 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.1] - 2026-03-07
+
+### Added
+- **Broadcast Mode & Host Control**: Replaced the strict single-user lock with a new `Broadcaster` system. Multiple users can now connect and view the same stream simultaneously. The first user becomes the "Host" (controlling the browser), while others are "Viewers". Viewers can request control via a new UI button.
+- **Process Reaper**: Implemented automatic cleanup of child processes (Xvfb, Browser) on parent crash or kill.
 
 ### Fixed
 - **Status Command Output**: Added missing trailing newlines to the `status` command output for cleaner terminal display.
+- **Instant Refocus Recovery**: Implemented a professional "Hard Re-sync" mechanism that clears internal WebRTC buffers upon window focus by re-attaching the media stream and requesting an immediate keyframe.
+- **Latency Overhaul**: Fine-tuned the VP8 encoder (`keyframe-max-dist=10`, `error-resilient=partitions`) to ensure rapid recovery from background throttling.
 
 ## [0.7.0] - 2026-03-02
 
@@ -154,7 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PulseAudio integration for audio capture
 - Xvfb virtual display support
 
-[Unreleased]: https://github.com/zulfikawr/vbrowser/compare/v0.7.0...HEAD
+[0.7.1]: https://github.com/zulfikawr/vbrowser/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/zulfikawr/vbrowser/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/zulfikawr/vbrowser/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/zulfikawr/vbrowser/compare/v0.5.2...v0.6.0

@@ -16,7 +16,7 @@ var (
 	cfgFile  string
 	logLevel string
 	cfg      *config.Config
-	Version  = "0.7.0"
+	Version  = "0.7.1"
 )
 
 var rootCmd = &cobra.Command{

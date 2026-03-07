@@ -23,22 +23,30 @@ var uiFiles embed.FS
 
 // Server manages the HTTP server.
 type Server struct {
-	cfg            *config.Config
-	configPath     string
-	server         *http.Server
-	mgr            *browser.Manager
-	currentSession *stream.Session
-	inputBatcher   *InputBatcher
-	mu             sync.Mutex
-	wsWriteMu      sync.Mutex
+	cfg          *config.Config
+	configPath   string
+	server       *http.Server
+	mgr          *browser.Manager
+	broadcaster  *stream.Broadcaster
+	clients      map[string]*Client
+	hostID       string
+	inputBatcher *InputBatcher
+	mu           sync.Mutex
 }
 
 // New creates a new HTTP server.
 func New(cfg *config.Config, mgr *browser.Manager, configPath string) *Server {
+	b, err := stream.NewBroadcaster(cfg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create broadcaster")
+	}
+
 	s := &Server{
-		cfg:        cfg,
-		configPath: configPath,
-		mgr:        mgr,
+		cfg:         cfg,
+		configPath:  configPath,
+		mgr:         mgr,
+		broadcaster: b,
+		clients:     make(map[string]*Client),
 	}
 	s.inputBatcher = NewInputBatcher(func(x, y int) {
 		xorg.Move(x, y)
@@ -48,6 +56,14 @@ func New(cfg *config.Config, mgr *browser.Manager, configPath string) *Server {
 
 // Start starts the HTTP server.
 func (s *Server) Start() error {
+	// Start broadcaster context
+	ctx := context.Background()
+	if err := s.broadcaster.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start broadcaster: %w", err)
+	}
+
+	s.startClipboardWatcher()
+
 	mux := http.NewServeMux()
 
 	// Serve embedded UI

@@ -13,3 +13,8 @@ lint:
 clean:
 	rm -f vbrowser
 	rm -rf dist/
+
+restart-dev: build
+	./vbrowser stop || true
+	./vbrowser service install
+	systemctl --user status vbrowser.service --no-pager

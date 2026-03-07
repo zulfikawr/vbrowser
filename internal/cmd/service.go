@@ -74,8 +74,9 @@ var serviceInstallCmd = &cobra.Command{
 		}
 
 		for _, c := range cmds {
-			if err := exec.Command(c[0], c[1:]...).Run(); err != nil {
-				return fmt.Errorf("failed to run %v: %w", c, err)
+			cmd := exec.Command(c[0], c[1:]...)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("failed to run %v: %w\nOutput: %s", c, err, string(out))
 			}
 		}
 
