@@ -1,3 +1,5 @@
+//go:build linux && cgo
+
 #include "gst.h"
 
 static GstFlowReturn gstreamer_send_new_sample_handler(GstElement *object, gpointer user_data) {

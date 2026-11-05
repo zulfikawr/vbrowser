@@ -1,3 +1,5 @@
+//go:build linux && cgo
+
 #include "xorg.h"
 
 static Display *DISPLAY = NULL;

@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2026-11-05
+
+### Fixed
+- **macOS Build Compatibility**: Fixed `make build` failing on macOS by introducing build tags and non-Linux/non-Cgo stub implementations for `pkg/gst` and `pkg/xorg`.
+- **Linux-Specific `SysProcAttr`**: Resolved compilation failure on Darwin caused by direct usage of Linux-only `SysProcAttr.Pdeathsig` by introducing `platform.SetDeathSig` cross-platform helper.
+- **Cgo Dependency Isolation**: Separated Linux Cgo bindings (`gst_linux.go`, `xorg_linux.go`) and applied `//go:build linux && cgo` directives to C source files (`gst.c`, `xorg.c`), preventing missing header errors (`<X11/Xlib.h>`, GStreamer) during builds and test runs on non-Linux systems.
+
 ## [0.7.1] - 2026-03-07
 
 ### Added
@@ -160,6 +167,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PulseAudio integration for audio capture
 - Xvfb virtual display support
 
+[0.7.2]: https://github.com/zulfikawr/vbrowser/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/zulfikawr/vbrowser/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/zulfikawr/vbrowser/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/zulfikawr/vbrowser/compare/v0.6.0...v0.6.1

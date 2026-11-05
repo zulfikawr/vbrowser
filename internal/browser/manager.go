@@ -92,7 +92,7 @@ func (m *Manager) Start(browserPath string) error {
 		if m.xvfbCmd.SysProcAttr == nil {
 			m.xvfbCmd.SysProcAttr = &syscall.SysProcAttr{}
 		}
-		m.xvfbCmd.SysProcAttr.Pdeathsig = syscall.SIGKILL
+		platform.SetDeathSig(m.xvfbCmd.SysProcAttr)
 
 		// Open X11 display for native input handling
 		displayStr := fmt.Sprintf(":%d", m.cfg.Display.DisplayNum)
@@ -120,9 +120,9 @@ func (m *Manager) Start(browserPath string) error {
 	args := m.buildBrowserArgs()
 	m.browserCmd = exec.Command(browserPath, args...)
 	m.browserCmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid:   true,
-		Pdeathsig: syscall.SIGKILL,
+		Setpgid: true,
 	}
+	platform.SetDeathSig(m.browserCmd.SysProcAttr)
 
 	// Set environment variables
 	env := os.Environ()

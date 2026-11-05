@@ -8,10 +8,18 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"syscall"
 	"time"
 
 	"github.com/rs/zerolog/log"
 )
+
+// SetDeathSig sets the parent-death signal on SysProcAttr for Linux.
+func SetDeathSig(attr *syscall.SysProcAttr) {
+	if attr != nil {
+		attr.Pdeathsig = syscall.SIGKILL
+	}
+}
 
 // StartXvfb starts an Xvfb virtual display server.
 func StartXvfb(displayNum, width, height, depth int) (*exec.Cmd, error) {
