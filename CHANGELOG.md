@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **macOS Build Compatibility**: Fixed `make build` failing on macOS by introducing build tags and non-Linux/non-Cgo stub implementations for `pkg/gst` and `pkg/xorg`.
 - **Linux-Specific `SysProcAttr`**: Resolved compilation failure on Darwin caused by direct usage of Linux-only `SysProcAttr.Pdeathsig` by introducing `platform.SetDeathSig` cross-platform helper.
 - **Cgo Dependency Isolation**: Separated Linux Cgo bindings (`gst_linux.go`, `xorg_linux.go`) and applied `//go:build linux && cgo` directives to C source files (`gst.c`, `xorg.c`), preventing missing header errors (`<X11/Xlib.h>`, GStreamer) during builds and test runs on non-Linux systems.
+- **Cross-Platform Browser Discovery**: Fixed `vbrowser list` on macOS and Windows by querying platform-specific application paths and candidate names instead of hardcoded Linux paths.
 
 ## [0.7.1] - 2026-03-07
 

@@ -30,3 +30,13 @@ func TestGetInstallInstructions(t *testing.T) {
 		t.Error("GetInstallInstructions returned empty string")
 	}
 }
+
+func TestFindAllBrowsers(t *testing.T) {
+	browsers := FindAllBrowsers()
+	t.Logf("Found %d browsers: %v", len(browsers), browsers)
+	for _, b := range browsers {
+		if _, err := os.Stat(b); err != nil {
+			t.Errorf("FindAllBrowsers returned invalid path: %s", b)
+		}
+	}
+}

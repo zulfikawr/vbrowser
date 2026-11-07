@@ -12,9 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// FindSystemBrowser attempts to find an installed Chromium, Google Chrome, or Firefox binary.
-// browserType can be "auto", "chrome", "chromium", or "firefox".
-func FindSystemBrowser(browserType string) (string, error) {
+func getBrowserCandidates(browserType string) ([]string, []string) {
 	var names []string
 	var paths []string
 
@@ -54,28 +52,33 @@ func FindSystemBrowser(browserType string) (string, error) {
 			"/snap/bin/firefox",
 		}
 	case "darwin":
+		homeDir, _ := os.UserHomeDir()
 		chromePaths := []string{
 			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 			"/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+			filepath.Join(homeDir, "Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+			filepath.Join(homeDir, "Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary"),
 		}
 		chromiumPaths := []string{
 			"/Applications/Chromium.app/Contents/MacOS/Chromium",
+			filepath.Join(homeDir, "Applications/Chromium.app/Contents/MacOS/Chromium"),
 		}
 		firefoxPaths := []string{
 			"/Applications/Firefox.app/Contents/MacOS/firefox",
+			filepath.Join(homeDir, "Applications/Firefox.app/Contents/MacOS/firefox"),
 		}
 
 		if browserType == "chrome" {
-			names = []string{"Google Chrome"}
+			names = []string{"Google Chrome", "google-chrome"}
 			paths = chromePaths
 		} else if browserType == "chromium" {
-			names = []string{"Chromium"}
+			names = []string{"Chromium", "chromium"}
 			paths = chromiumPaths
 		} else if browserType == "firefox" {
-			names = []string{"Firefox"}
+			names = []string{"Firefox", "firefox"}
 			paths = firefoxPaths
 		} else {
-			names = []string{"Chromium", "Google Chrome", "Firefox"}
+			names = []string{"Chromium", "chromium", "Google Chrome", "google-chrome", "Firefox", "firefox"}
 			paths = append(chromiumPaths, append(chromePaths, firefoxPaths...)...)
 		}
 	case "windows":
@@ -109,6 +112,14 @@ func FindSystemBrowser(browserType string) (string, error) {
 		}
 	}
 
+	return names, paths
+}
+
+// FindSystemBrowser attempts to find an installed Chromium, Google Chrome, or Firefox binary.
+// browserType can be "auto", "chrome", "chromium", or "firefox".
+func FindSystemBrowser(browserType string) (string, error) {
+	names, paths := getBrowserCandidates(browserType)
+
 	// 1. Try PATH
 	for _, name := range names {
 		if path, err := exec.LookPath(name); err == nil {
@@ -119,7 +130,7 @@ func FindSystemBrowser(browserType string) (string, error) {
 
 	// 2. Try common absolute paths
 	for _, path := range paths {
-		if browserType != "auto" {
+		if browserType != "auto" && browserType != "" {
 			lowerPath := strings.ToLower(path)
 			if browserType == "chrome" && !strings.Contains(lowerPath, "chrome") {
 				continue
@@ -143,26 +154,12 @@ func FindSystemBrowser(browserType string) (string, error) {
 
 // FindAllBrowsers returns a list of all detected browser binaries on the system.
 func FindAllBrowsers() []string {
+	names, paths := getBrowserCandidates("auto")
 	found := make(map[string]bool)
 	var results []string
 
-	chromeNames := []string{"google-chrome", "google-chrome-stable", "google-chrome-unstable"}
-	chromiumNames := []string{"chromium", "chromium-browser"}
-	firefoxNames := []string{"firefox", "firefox-esr"}
-	allNames := append(chromiumNames, append(chromeNames, firefoxNames...)...)
-
-	allPaths := []string{
-		"/usr/bin/chromium",
-		"/usr/bin/chromium-browser",
-		"/usr/bin/google-chrome",
-		"/usr/bin/google-chrome-stable",
-		"/usr/bin/firefox",
-		"/snap/bin/chromium",
-		"/snap/bin/firefox",
-	}
-
 	// Try PATH
-	for _, name := range allNames {
+	for _, name := range names {
 		if path, err := exec.LookPath(name); err == nil {
 			if !found[path] {
 				found[path] = true
@@ -172,7 +169,7 @@ func FindAllBrowsers() []string {
 	}
 
 	// Try common paths
-	for _, path := range allPaths {
+	for _, path := range paths {
 		if _, err := os.Stat(path); err == nil {
 			if !found[path] {
 				found[path] = true
